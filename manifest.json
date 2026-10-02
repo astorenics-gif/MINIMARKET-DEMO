@@ -1,0 +1,21 @@
+{
+  "name": "MINIMARKET THIAGO",
+  "short_name": "ASTORE ECO",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "description": "Ecosistema ASTORE, registro de tiendas, registro de repartidores, etc",
+  "icons": [
+    {
+      "src": "logo_Aguaytia_icono.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo_Aguaytia_icono.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
