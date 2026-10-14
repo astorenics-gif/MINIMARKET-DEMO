@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<title>Astore Admin V3 · Trabajadores y sucursales</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f1f5f9;color:#0f172a}
+button,input,select{font:inherit}button{cursor:pointer;border:0}.hidden{display:none!important}
+.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(145deg,#0f172a,#334155)}
+.login-card{width:min(420px,100%);background:white;border-radius:24px;padding:28px;box-shadow:0 20px 60px #0005}
+.logo{width:58px;height:58px;border-radius:16px;background:#0f172a;color:white;display:grid;place-items:center;font-size:28px;font-weight:800;margin-bottom:16px}
+h1,h2,h3{margin:0 0 8px}.muted{color:#64748b;font-size:14px}.field{margin:14px 0}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}
+input,select{width:100%;padding:13px 14px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;outline:none}
+input:focus,select:focus{border-color:#0f172a;box-shadow:0 0 0 3px #0f172a12}
+.primary{background:#0f172a;color:white;padding:13px 16px;border-radius:12px;font-weight:700}.secondary{background:#e2e8f0;color:#0f172a;padding:11px 14px;border-radius:11px;font-weight:650}.danger{background:#fee2e2;color:#991b1b;padding:10px 13px;border-radius:10px;font-weight:650}
+.topbar{height:64px;background:#0f172a;color:white;display:flex;align-items:center;justify-content:space-between;padding:0 16px;position:sticky;top:0;z-index:10}
+.brand{font-weight:800;font-size:18px}.brand small{display:block;font-size:10px;color:#94a3b8;letter-spacing:.08em}
+.layout{display:flex;min-height:calc(100vh - 64px)}.side{width:235px;background:white;border-right:1px solid #e2e8f0;padding:16px;flex:none}
+.navbtn{width:100%;text-align:left;background:transparent;padding:12px;border-radius:11px;margin-bottom:5px;font-weight:650;color:#334155}.navbtn.active,.navbtn:hover{background:#e2e8f0;color:#0f172a}
+.content{padding:20px;width:100%;max-width:1200px;margin:auto}.head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}.card{background:white;border:1px solid #e2e8f0;border-radius:16px;padding:17px}.stat{font-size:28px;font-weight:800;margin-top:6px}
+.panel{background:white;border:1px solid #e2e8f0;border-radius:16px;padding:16px;margin-bottom:16px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.toolbar input{max-width:340px}
+.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:650px}th,td{text-align:left;padding:12px 10px;border-bottom:1px solid #e2e8f0;font-size:14px}th{font-size:12px;color:#64748b;text-transform:uppercase}
+.badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:750}.on{background:#dcfce7;color:#166534}.off{background:#fee2e2;color:#991b1b}
+.actions{display:flex;gap:6px;flex-wrap:wrap}.empty{text-align:center;padding:35px;color:#64748b}
+.modal{position:fixed;inset:0;background:#0007;display:grid;place-items:center;padding:16px;z-index:30}.modal-card{width:min(560px,100%);max-height:90vh;overflow:auto;background:white;border-radius:20px;padding:20px}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.close{background:#e2e8f0;border-radius:10px;width:38px;height:38px;font-size:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.footer-note{text-align:center;color:#94a3b8;font-size:12px;margin-top:18px}
+@media(max-width:800px){.side{width:70px;padding:10px}.navbtn{font-size:0;text-align:center}.navbtn:first-letter{font-size:20px}.content{padding:14px}.cards{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.side .nav-label{display:none}}
+@media(max-width:520px){.topbar{height:58px}.content{padding:10px}.cards{gap:8px}.card{padding:13px}.stat{font-size:23px}}
+</style>
+
+<style id="astore-admin-green-v2">
+:root{--ag:#10b981;--agd:#047857;--alink:#d1fae5}body{background:radial-gradient(ellipse at 0 0,rgba(16,185,129,.12),transparent 35%),#f3f8f6;color:#14201d}.login{background:radial-gradient(ellipse at 75% 20%,rgba(16,185,129,.25),transparent 35%),linear-gradient(145deg,#061a15,#0b2c22 65%,#07130f)}.login-card{border:1px solid #d1fae5;border-radius:26px}.logo{background:linear-gradient(135deg,#34d399,#047857);box-shadow:0 8px 22px #10b98140}.primary{background:linear-gradient(135deg,#10b981,#047857)!important;color:white!important;border:1px solid #059669!important;box-shadow:0 5px 16px #10b98125}.primary:hover{filter:brightness(1.04)}.side{background:#0b211a!important;border-right:1px solid #1c4a38}.navbtn.active{background:linear-gradient(100deg,#064e3b,#087f5b)!important;color:#ecfdf5!important}.navbtn:hover{background:#123c2c;color:#d1fae5}.topbar{background:rgba(255,255,255,.9)!important;border-bottom:1px solid #dcebe4;backdrop-filter:blur(14px)}.card,.panel{border:1px solid #dcebe4!important;border-radius:18px!important;box-shadow:0 9px 28px rgba(15,61,46,.055)}.badge.on{background:#d1fae5;color:#065f46}.badge.off{background:#fee2e2;color:#991b1b}input:focus,select:focus{border-color:#34d399!important;box-shadow:0 0 0 3px #10b98120!important}.modal-card{border-radius:22px!important}.danger{background:#fff1f2!important;color:#be123c!important;border:1px solid #fecdd3!important}.head{gap:12px;flex-wrap:wrap}.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}table{min-width:760px}.cards{gap:12px}.plan-basic{border-top:4px solid #10b981}.plan-pro{border-top:4px solid #0ea5e9}.plan-ultra{border-top:4px solid #8b5cf6}
+@media(max-width:800px){.side{width:62px!important;padding:8px 5px!important}.navbtn{font-size:0!important;padding:12px 4px!important;text-align:center}.navbtn:first-letter{font-size:20px}.side .nav-label{display:none!important}.content{padding:12px!important}.cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}.cards .card{min-width:0;padding:13px}.head h2{font-size:21px}.toolbar{gap:8px}.actions{flex-wrap:wrap}.actions button{min-height:40px}}
+@media(max-width:480px){.login-card{padding:22px!important}.content{padding:9px!important}.cards{gap:8px!important}.stat{font-size:22px!important}.panel{padding:13px!important}.head .primary{width:100%}.cards .card{padding:11px!important}.topbar{padding:0 12px!important}}
+</style>
+</head>
+<body>
+<div id="loginView" class="login">
+  <div class="login-card">
+    <div class="logo">A</div>
+    <h1>Astore Admin</h1>
+    <p class="muted">Panel independiente de administración</p>
+    <form id="loginForm">
+      <div class="field"><label>Usuario</label><input id="loginUser" required placeholder="admin"></div>
+      <div class="field"><label>Contraseña</label><input id="loginPass" type="password" required placeholder="••••••"></div>
+      <button class="primary" style="width:100%;margin-top:8px">Ingresar</button>
+    </form>
+    <p id="loginMsg" class="muted" style="color:#b91c1c;margin-top:12px"></p>
+    <div class="footer-note">V3 local · trabajadores, sucursales, planes y PIN · preparada para Supabase</div>
+  </div>
+</div>
+
+<div id="appView" class="hidden">
+<header class="topbar">
+  <div class="brand">Astore Admin <small>CONTROL CENTRAL</small></div>
+  <button id="logoutBtn" class="secondary">Salir</button>
+</header>
+<div class="layout">
+<aside class="side">
+  <button class="navbtn active" data-section="inicio">🏠 <span class="nav-label">Inicio</span></button>
+  <button class="navbtn" data-section="tiendas">🏪 <span class="nav-label">Tiendas</span></button>
+  <button class="navbtn" data-section="usuarios">👤 <span class="nav-label">Usuarios</span></button>
+  <button class="navbtn" data-section="sucursales">🏬 <span class="nav-label">Sucursales</span></button>
+  <button class="navbtn" data-section="config">⚙️ <span class="nav-label">Configuración</span></button>
+</aside>
+<main id="content" class="content"></main>
+</div>
+</div>
+
+<div id="modal" class="modal hidden"><div class="modal-card">
+<div class="modal-head"><h3 id="modalTitle"></h3><button class="close" onclick="closeModal()">×</button></div>
+<div id="modalBody"></div>
+</div></div>
+
+<script>
+const DATA_KEY="astore_admin_v1_data",SESSION_KEY="astore_admin_v1_session";
+let data=JSON.parse(localStorage.getItem(DATA_KEY)||"null")||{
+ tiendas:[], sucursales:[],
+ usuarios:[{id:crypto.randomUUID(),tiendaId:null,sucursalId:null,nombre:"Administrador Astore",usuario:"admin",rol:"Administrador",estado:"activa"}]
+};
+data.sucursales ||= []; data.usuarios ||= []; data.tiendas ||= [];
+function save(){localStorage.setItem(DATA_KEY,JSON.stringify(data));localStorage.setItem("astore_admin_v1_data",JSON.stringify(data));publishBranches();}
+function esc(v=""){return String(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function getStore(id){return data.tiendas.find(x=>x.id===id)}
+function showApp(){loginView.classList.add("hidden");appView.classList.remove("hidden");render("inicio")}
+function showLogin(){appView.classList.add("hidden");loginView.classList.remove("hidden")}
+function render(section="inicio"){
+ document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("active",b.dataset.section===section));
+ if(section==="inicio")content.innerHTML=dashboard();
+ if(section==="tiendas")content.innerHTML=stores();
+ if(section==="usuarios")content.innerHTML=users();
+ if(section==="sucursales")content.innerHTML=branches();
+ if(section==="config")content.innerHTML=config();
+}
+function dashboard(){
+ const active=data.tiendas.filter(s=>s.estado==="activa").length;
+ return `<div class="head"><div><h2>Inicio</h2><div class="muted">Resumen de Astore</div></div><button class="primary" onclick="openStore()">+ Nueva tienda</button></div>
+ <div class="cards">
+ <div class="card"><div class="muted">Tiendas</div><div class="stat">${data.tiendas.length}</div></div>
+ <div class="card"><div class="muted">Activas</div><div class="stat">${active}</div></div>
+ <div class="card"><div class="muted">Suspendidas</div><div class="stat">${data.tiendas.length-active}</div></div>
+ <div class="card"><div class="muted">Usuarios</div><div class="stat">${data.usuarios.length}</div></div><div class="card"><div class="muted">Sucursales</div><div class="stat">${data.sucursales.length}</div></div></div>
+ <div class="panel"><h3>🚀 Planes Astore</h3><div class="cards" style="grid-template-columns:repeat(3,1fr)"><div class="card plan-basic"><b>🟢 Básico</b><div class="muted">NRUS · boletas/tickets y funciones esenciales.</div></div><div class="card plan-pro"><b>🔵 Pro</b><div class="muted">RER/RMT/RG · comprobantes y contabilidad avanzada según régimen.</div></div><div class="card plan-ultra"><b>🟣 Ultra</b><div class="muted">Empresarial · multi-tienda, usuarios y capacidades ilimitadas.</div></div></div></div>
+ <div class="panel"><h3>Primeros pasos</h3><p class="muted">Registra la tienda y aquí mismo selecciona su régimen tributario. Ese régimen se enviará a Astore para automatizar su contabilidad.</p></div>`;
+}
+function stores(){
+ return `<div class="head"><div><h2>Tiendas</h2><div class="muted">Negocios registrados en Astore</div></div><button class="primary" onclick="openStore()">+ Nueva tienda</button></div>
+ <div class="panel"><div class="toolbar"><input id="storeSearch" placeholder="Buscar tienda, RUC, propietario o régimen..." oninput="filterStores()"></div>
+ <div class="table-wrap"><table><thead><tr><th>Tienda</th><th>Régimen</th><th>Propietario</th><th>Contacto</th><th>Plan</th><th>Estado</th><th>Acciones</th></tr></thead>
+ <tbody id="storeRows">${storeRows(data.tiendas)}</tbody></table></div></div>`;
+}
+function storeRows(list){
+ if(!list.length)return `<tr><td colspan="7" class="empty">No hay tiendas registradas.</td></tr>`;
+ return list.map(s=>`<tr><td><b>${esc(s.nombre)}</b><br><span class="muted">${esc(s.ruc||"Sin RUC")}</span></td>
+ <td><span class="badge">${esc(s.regimen||"Sin configurar")}</span></td><td>${esc(s.propietario||"")}</td><td>${esc(s.telefono||"")}</td><td>${esc(s.plan)}</td>
+ <td><span class="badge ${s.estado==="activa"?"on":"off"}">${esc(s.estado)}</span></td>
+ <td><div class="actions"><button class="secondary" onclick="openStore('${s.id}')">Editar</button>
+ <button class="${s.estado==="activa"?"danger":"secondary"}" onclick="toggleStore('${s.id}')">${s.estado==="activa"?"Suspender":"Activar"}</button></div></td></tr>`).join("");
+}
+function filterStores(){
+ const q=storeSearch.value.toLowerCase();
+ storeRowsEl=document.getElementById("storeRows");
+ storeRowsEl.innerHTML=storeRows(data.tiendas.filter(s=>[s.nombre,s.ruc,s.propietario,s.telefono,s.regimen].join(" ").toLowerCase().includes(q)));
+}
+function users(){
+ return `<div class="head"><div><h2>Usuarios</h2><div class="muted">Usuarios del panel y de las tiendas</div></div><button class="primary" onclick="openUser()">+ Nuevo usuario</button></div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Tienda</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+ ${data.usuarios.map(u=>`<tr><td><b>${esc(u.nombre)}</b></td><td>${esc(u.usuario)}</td><td>${u.tiendaId?esc(getStore(u.tiendaId)?.nombre||"—"):"Astore Admin"}${u.sucursalId?`<br><span class="muted">${esc(getBranch(u.sucursalId)?.nombre||"Sucursal")}</span>`:""}</td><td>${esc(u.rol)}</td><td><span class="badge ${u.estado==="activa"?"on":"off"}">${esc(u.estado)}</span></td><td><button class="secondary" onclick="openUser('${u.id}')">Editar</button></td></tr>`).join("")}
+ </tbody></table></div></div>`;
+}
+function getBranch(id){return data.sucursales.find(b=>b.id===id)}
+function branches(){
+ return `<div class="head"><div><h2>Sucursales</h2><div class="muted">Locales y puntos de venta asociados a cada tienda</div></div><button class="primary" onclick="openBranch()">+ Nueva sucursal</button></div>
+ <div class="panel"><div class="muted" style="margin-bottom:12px">Básico: una sede principal. Pro y Ultra: creación de sucursales adicionales en esta versión local.</div>
+ <div class="table-wrap"><table><thead><tr><th>Sucursal</th><th>Tienda</th><th>Código</th><th>Dirección</th><th>Usuarios</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+ ${data.sucursales.length?data.sucursales.map(b=>`<tr><td><b>${esc(b.nombre)}</b><br><span class="muted">${b.principal?"Sede principal":"Sucursal"}</span></td><td>${esc(getStore(b.tiendaId)?.nombre||"Tienda eliminada")}</td><td>${esc(b.codigo||"—")}</td><td>${esc(b.direccion||"—")}</td><td>${data.usuarios.filter(u=>u.sucursalId===b.id).length}</td><td><span class="badge ${b.estado==="activa"?"on":"off"}">${esc(b.estado)}</span></td><td><div class="actions"><button class="secondary" onclick="openBranch('${b.id}')">Editar</button><button class="${b.estado==="activa"?"danger":"secondary"}" onclick="toggleBranch('${b.id}')">${b.estado==="activa"?"Suspender":"Activar"}</button></div></td></tr>`).join(""):`<tr><td colspan="7" class="empty">Aún no hay sucursales. Crea la sede principal o una sucursal adicional.</td></tr>`}
+ </tbody></table></div></div>`;
+}
+function openBranch(id=""){
+ const b=id?getBranch(id):{nombre:"",tiendaId:data.tiendas[0]?.id||"",codigo:"",direccion:"",telefono:"",principal:false,estado:"activa"};
+ if(!data.tiendas.length){alert("Primero registra una tienda.");return;}
+ modalTitle.textContent=id?"Editar sucursal":"Nueva sucursal";
+ modalBody.innerHTML=`<form onsubmit="saveBranch(event,'${id}')"><div class="field"><label>Tienda propietaria *</label><select id="bTienda" required>${data.tiendas.map(t=>`<option value="${t.id}">${esc(t.nombre)} · ${esc(t.plan||"Básico")}</option>`).join("")}</select></div><div class="field"><label>Nombre de sucursal *</label><input id="bNombre" required value="${esc(b.nombre)}" placeholder="Ej. Local Centro"></div><div class="grid2"><div class="field"><label>Código</label><input id="bCodigo" value="${esc(b.codigo||"")}" placeholder="SUC-001"></div><div class="field"><label>Teléfono</label><input id="bTel" value="${esc(b.telefono||"")}" inputmode="tel"></div></div><div class="field"><label>Dirección</label><input id="bDireccion" value="${esc(b.direccion||"")}"></div><div class="grid2"><div class="field"><label>Tipo</label><select id="bPrincipal"><option value="false">Sucursal adicional</option><option value="true">Sede principal</option></select></div><div class="field"><label>Estado</label><select id="bEstado"><option value="activa">Activa</option><option value="suspendida">Suspendida</option></select></div></div><div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar sucursal</button></div></form>`;
+ bTienda.value=b.tiendaId;bPrincipal.value=String(!!b.principal);bEstado.value=b.estado||"activa";modal.classList.remove("hidden");
+}
+function saveBranch(e,id){
+ e.preventDefault();const tienda=getStore(bTienda.value);if(!tienda){alert("Selecciona una tienda válida.");return;}
+ const sameStore=data.sucursales.filter(x=>x.tiendaId===tienda.id&&x.id!==id);
+ if(tienda.plan==="Básico"&&sameStore.length>=1){alert("El plan Básico permite una sola sede. Para agregar más sucursales, cambia la tienda a Pro o Ultra.");return;}
+ const codigo=bCodigo.value.trim();if(codigo&&data.sucursales.some(x=>x.tiendaId===tienda.id&&x.codigo===codigo&&x.id!==id)){alert("Ese código ya existe en esta tienda.");return;}
+ const principal=bPrincipal.value==="true";if(principal)data.sucursales.forEach(x=>{if(x.tiendaId===tienda.id&&x.id!==id)x.principal=false;});
+ const obj={nombre:bNombre.value.trim(),tiendaId:tienda.id,codigo,direccion:bDireccion.value.trim(),telefono:bTel.value.trim(),principal,estado:bEstado.value,updatedAt:new Date().toISOString()};
+ if(id){const old=getBranch(id);const oldStore=old.tiendaId;Object.assign(old,obj);if(oldStore!==obj.tiendaId)data.usuarios.forEach(u=>{if(u.sucursalId===id&&u.tiendaId!==obj.tiendaId){u.sucursalId=null;}});}
+ else data.sucursales.push({id:crypto.randomUUID(),...obj,createdAt:new Date().toISOString()});
+ publishBranches();save();closeModal();render("sucursales");
+}
+function toggleBranch(id){const b=getBranch(id);if(!b)return;b.estado=b.estado==="activa"?"suspendida":"activa";if(b.estado==="suspendida")data.usuarios.forEach(u=>{if(u.sucursalId===id)u.estado="suspendida";});publishBranches();data.usuarios.forEach(u=>{if(u.sucursalId===id)publishUserCredentials(u,u.id)});save();render("sucursales");}
+function publishBranches(){
+ localStorage.setItem("astore_v80_branches",JSON.stringify(data.sucursales.map(b=>({...b,tenantId:b.tiendaId,tenantName:getStore(b.tiendaId)?.nombre||""}))));
+ localStorage.setItem("astore_admin_v1_data",JSON.stringify(data));
+}
+function config(){
+ return `<div class="head"><div><h2>Configuración</h2><div class="muted">Configuración inicial del panel</div></div></div>
+ <div class="panel"><h3>Estado</h3><p class="muted">Los datos de esta V1 se guardan en el navegador mediante localStorage. No usar esta autenticación para producción todavía.</p>
+ <p><b>Versión:</b> Astore Admin V3 · Trabajadores y sucursales</p><p><b>Tiendas:</b> ${data.tiendas.length}</p><p><b>Sucursales:</b> ${data.sucursales.length}</p><p><b>Usuarios:</b> ${data.usuarios.length}</p></div>
+ <div class="panel"><h3>Próxima etapa</h3><p class="muted">Conectar autenticación segura, base de datos y sincronización con Supabase.</p></div>`;
+}
+function openStore(id=""){
+ const s=id?getStore(id):{nombre:"",propietario:"",ruc:"",telefono:"",direccion:"",plan:"Básico",regimen:"RMT",tipoContribuyente:"Persona natural",pin:""};
+ modalTitle.textContent=id?"Editar tienda":"Nueva tienda";
+ modalBody.innerHTML=`<form onsubmit="saveStore(event,'${id}')">
+ <div class="field"><label>Nombre de la tienda *</label><input id="sNombre" value="${esc(s.nombre)}" required></div>
+ <div class="grid2"><div class="field"><label>Propietario</label><input id="sProp" value="${esc(s.propietario)}"></div><div class="field"><label>RUC</label><input id="sRuc" inputmode="numeric" maxlength="11" value="${esc(s.ruc)}" placeholder="11 dígitos"></div></div>
+ <div class="panel" style="background:#f8fafc;border:2px solid #0f172a12;margin:14px 0;padding:14px;border-radius:14px"><div style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:7px">🧾 CONFIGURACIÓN TRIBUTARIA</div><div class="grid2"><div class="field" style="margin:0"><label>Régimen tributario *</label><select id="sRegimen"><option value="NRUS">NRUS · Nuevo RUS</option><option value="RER">RER · Régimen Especial</option><option value="RMT">RMT · MYPE Tributario</option><option value="RG">RG · Régimen General</option></select></div><div class="field" style="margin:0"><label>Tipo de contribuyente</label><select id="sTipo"><option>Persona natural</option><option>Persona jurídica</option></select></div></div>
+ <div class="grid2"><div class="field"><label>Teléfono</label><input id="sTel" value="${esc(s.telefono)}"></div><div class="field"><label>Plan</label><select id="sPlan"><option>Básico</option><option>Pro</option><option>Ultra</option></select></div></div><div id="ultraInfo" class="panel" style="display:none;background:#faf5ff;border:1px solid #ddd6fe"><b>🟣 Astore Ultra</b><div class="muted">Activa capacidades empresariales: multi-tienda, usuarios ilimitados, transferencias entre sucursales, auditoría, reportes gerenciales y soporte prioritario.</div></div>
+ <div class="grid2"><div class="field"><label>PIN de acceso de la tienda *</label><input id="sPin" inputmode="numeric" maxlength="6" minlength="4" value="${esc(s.pin||"")}" placeholder="4 a 6 dígitos" required></div><div class="field"><label>Estado tributario</label><select id="sTaxStatus"><option value="activo">Configurado</option><option value="revisar">Revisar con contador</option></select></div></div>
+ <div class="field"><label>Dirección</label><input id="sDir" value="${esc(s.direccion)}"></div>
+ <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar tienda</button></div></form>`;
+ sPlan.value=s.plan||"Básico";sPlan.onchange=()=>{ultraInfo.style.display=sPlan.value==="Ultra"?"block":"none"};ultraInfo.style.display=sPlan.value==="Ultra"?"block":"none";sRegimen.value=s.regimen||"RMT";sTipo.value=s.tipoContribuyente||"Persona natural";sPin.value=s.pin||"";sTaxStatus.value=s.taxStatus||"activo";modal.classList.remove("hidden");
+}
+function saveStore(e,id){
+ e.preventDefault();const ruc=sRuc.value.trim(); const pin=sPin.value.trim();
+ if(ruc && !/^\d{11}$/.test(ruc)){alert("El RUC debe tener 11 dígitos.");return;}
+ if(!/^\d{4,6}$/.test(pin)){alert("El PIN debe tener entre 4 y 6 dígitos.");return;}
+ const obj={nombre:sNombre.value.trim(),propietario:sProp.value.trim(),ruc,telefono:sTel.value.trim(),plan:sPlan.value,regimen:sRegimen.value,tipoContribuyente:sTipo.value,pin,direccion:sDir.value.trim(),taxStatus:sTaxStatus.value,accounting:{regimen:sRegimen.value,igv:sRegimen.value!=="NRUS",updatedAt:new Date().toISOString()}};
+ if(id)Object.assign(getStore(id),obj);else data.tiendas.push({id:crypto.randomUUID(),...obj,estado:"activa",fechaCreacion:new Date().toISOString()});
+ publishStoreConfig(obj,id||data.tiendas[data.tiendas.length-1].id);
+ save();closeModal();render("tiendas");
+}
+
+function publishStoreConfig(obj,id){
+ const cfg={tenantId:id,tenantName:obj.nombre,ruc:obj.ruc||"",regimen:obj.regimen,tipoContribuyente:obj.tipoContribuyente,pin:obj.pin,plan:obj.plan,taxStatus:obj.taxStatus,accounting:obj.accounting,updatedAt:new Date().toISOString()};
+ const all=JSON.parse(localStorage.getItem("astore_v80_tenants")||"[]"); const i=all.findIndex(x=>x.id===id); if(i>=0)all[i]={...all[i],...cfg};else all.push(cfg); localStorage.setItem("astore_v80_tenants",JSON.stringify(all));
+ localStorage.setItem("astore_v80_selected_tenant",JSON.stringify(cfg));
+ localStorage.setItem("astore_v80_branches",JSON.stringify(data.sucursales.filter(b=>b.tiendaId===id).map(b=>({...b,tenantId:b.tiendaId,tenantName:obj.nombre}))));
+}
+function toggleStore(id){const s=getStore(id);s.estado=s.estado==="activa"?"suspendida":"activa";save();render("tiendas")}
+function openUser(id=""){
+ const u=id?data.usuarios.find(x=>x.id===id):{nombre:"",usuario:"",rol:"Vendedor",tiendaId:data.tiendas[0]?.id||"",estado:"activa"};
+ modalTitle.textContent=id?"Editar usuario":"Nuevo usuario";
+ modalBody.innerHTML=`<form onsubmit="saveUser(event,'${id}')">
+ <div class="field"><label>Nombre *</label><input id="uNombre" value="${esc(u.nombre)}" required></div>
+ <div class="grid2"><div class="field"><label>Usuario *</label><input id="uUsuario" value="${esc(u.usuario)}" required></div>
+ <div class="field"><label>PIN *</label><input id="uPin" inputmode="numeric" maxlength="6" minlength="4" value="${esc(u.pin||"")}" placeholder="4 a 6 dígitos" required></div></div>
+ <div class="grid2"><div class="field"><label>Rol</label><select id="uRol"><option>Administrador</option><option>Encargado</option><option>Vendedor</option><option>Almacén</option></select></div><div class="field"><label>Sucursal asignada</label><select id="uSucursal"><option value="">Todas / Sin asignar</option>${data.sucursales.map(b=>`<option value="${b.id}" data-store="${b.tiendaId}">${esc(b.nombre)} · ${esc(getStore(b.tiendaId)?.nombre||"")}</option>`).join("")}</select></div></div>
+ <div class="field"><label>Tienda</label><select id="uTienda"><option value="">Astore Admin</option>${data.tiendas.map(s=>`<option value="${s.id}">${esc(s.nombre)}</option>`).join("")}</select><small class="muted">Los usuarios de tienda solo deben asignarse a una tienda de su propiedad.</small></div>
+ <div class="field"><label>Estado</label><select id="uEstado"><option>activa</option><option>suspendida</option></select></div>
+ <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar usuario</button></div></form>`;
+ uRol.value=u.rol;uTienda.value=u.tiendaId||"";uSucursal.value=u.sucursalId||"";uEstado.value=u.estado;uPin.value=u.pin||"";
+ const syncBranchOptions=()=>{const sid=uTienda.value;[...uSucursal.options].forEach(o=>{if(o.value)o.hidden=!!sid&&o.dataset.store!==sid});if(uSucursal.selectedOptions[0]?.hidden)uSucursal.value=""};uTienda.onchange=syncBranchOptions;syncBranchOptions();modal.classList.remove("hidden");
+}
+function saveUser(e,id){
+ e.preventDefault();const pin=uPin.value.trim();if(!/^\d{4,6}$/.test(pin)){alert("El PIN debe tener entre 4 y 6 dígitos.");return;}const tiendaId=uTienda.value||null, sucursalId=uSucursal.value||null; if(sucursalId && getBranch(sucursalId)?.tiendaId!==tiendaId){alert("La sucursal debe pertenecer a la tienda seleccionada.");return;} const obj={nombre:uNombre.value.trim(),usuario:uUsuario.value.trim(),pin,rol:uRol.value,tiendaId,sucursalId,estado:uEstado.value};
+ if(id)Object.assign(data.usuarios.find(x=>x.id===id),obj);else data.usuarios.push({id:crypto.randomUUID(),...obj});
+ publishUserCredentials(obj,id||data.usuarios[data.usuarios.length-1].id); save();closeModal();render("usuarios");
+}
+
+function publishUserCredentials(obj,id){
+ const all=JSON.parse(localStorage.getItem("astore_v80_store_users")||"[]");
+ const cfg={id,username:obj.usuario,pin:obj.pin,nombre:obj.nombre,rol:obj.rol,tiendaId:obj.tiendaId,sucursalId:obj.sucursalId||null,estado:obj.estado,updatedAt:new Date().toISOString()};
+ const i=all.findIndex(x=>x.id===id);if(i>=0)all[i]=cfg;else all.push(cfg);localStorage.setItem("astore_v80_store_users",JSON.stringify(all));
+}
+function closeModal(){modal.classList.add("hidden")}
+document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>render(b.dataset.section));
+loginForm.onsubmit=e=>{e.preventDefault();if(loginUser.value.trim()==="admin"&&loginPass.value==="astore123"){sessionStorage.setItem(SESSION_KEY,"1");showApp()}else loginMsg.textContent="Usuario o contraseña incorrectos."};
+logoutBtn.onclick=()=>{sessionStorage.removeItem(SESSION_KEY);showLogin()};
+if(sessionStorage.getItem(SESSION_KEY)==="1")showApp();else showLogin();
+</script>
+</body>
+</html>
