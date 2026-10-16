@@ -6135,6 +6135,10 @@ small,.muted,.hint,.help-text{line-height:1.4}
 .av-chips button{padding:8px 12px;border-radius:999px;border:1px solid var(--border,#e2e8f0);background:#fff;font-weight:700;font-size:13px;cursor:pointer}
 .av-change{font-size:15px;font-weight:800}
 .av-change.bad{color:#dc2626}.av-change.ok{color:#0b6b4f}
+/* el aviso "Online" tapaba los botones de los modales en el celular */
+.modal.open{z-index:99980!important}
+body.modal-open .v80-sync{display:none}
+.av-ok{width:100%;min-height:44px;font-weight:800;border-radius:12px}
 </style>
 <script id="av-patch-core">
 /* ===== PARCHE CORE: prompts, clientes, cobro seguro, canasta con decimales, vuelto ===== */
@@ -6362,7 +6366,7 @@ window.__avBaseUnit=function(p){
 function cartLine(key){return state.cart.find(x=>String(x.key)===String(key));}
 function lineBase(c){const p=state.products.find(x=>String(x.id)===String(c.id));return window.__avBaseUnit(p);}
 function lineIsWeight(c){
-  const u=lineBase(c);if(u)return u;
+  const u=lineBase(c);if(u)return u;if(c.wt)return c.wt;
   const t=nz(c.presName);for(const k in WU)if(new RegExp('\\b'+k+'\\b|kilo|litro|gramo').test(t))return k;return'';
 }
 window.setCartQty=function(key,val){
@@ -6406,6 +6410,12 @@ function enhanceCart(){
     inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}};
     span.replaceWith(inp);
     if(w){const u=document.createElement('span');u.className='av-cartunit';u.textContent=w;inp.after(u);}
+    if(!lineBase(c)){
+      const t=document.createElement('button');t.type='button';t.className='secondary';t.textContent='⚖️';t.title=c.wt?'Quitar venta por peso':'Vender por peso (permite 0.5, 0.25…)';
+      t.style.cssText='padding:4px 7px;margin-left:4px;font-size:12px;'+(c.wt?'background:#dcfce7;border-color:#16a34a':'');
+      t.onclick=()=>{if(c.wt)delete c.wt;else c.wt='kg';if(!c.wt&&!Number.isInteger(c.qty))c.qty=Math.max(1,Math.round(c.qty));renderPOS();};
+      (inp.nextSibling&&inp.nextSibling.className==='av-cartunit'?inp.nextSibling:inp).after(t);
+    }
   });
   const cont=$('posContinueBtn');
   if(cont&&typeof posSaleStage!=='undefined'&&posSaleStage===1){
@@ -6499,6 +6509,8 @@ defU('kg','w','kg kgs kilo kilos kilogramo kilogramos');
 defU('g','w','g gr grs gramo gramos');
 defU('l','v','l lt lts litro litros');
 defU('ml','v','ml mililitro mililitros');
+defU('m','m','sol soles');
+defU('cent','m','centimo centimos');
 defU('doc','n','docena docenas');
 defU('u','n','unidad unidades und unds unid pieza piezas pza pzas');
 defU('pack','n','paquete paquetes pqte bolsa bolsas caja cajas botella botellas lata latas sachet sachets frasco frascos sobre sobres saco sacos barra barras rollo rollos tarro tarros balde baldes atado atados manojo manojos pack packs six sixpack bandeja bandejas jaba jabas cartera carton cartones galon galones');
@@ -6541,6 +6553,8 @@ function fractions(t){
       if(isNum(t[i-1])&&isNum(t[i+1])&&!/\./.test(t[i-1])){t.splice(i-1,3,t[i-1]+'.'+t[i+1]);i--;}
       continue;
     }
+    if((w==='sol'||w==='soles')&&isNum(t[i-1])&&isNum(t[i+1])&&+t[i+1]<100&&!UNITS[t[i+2]]){t[i-1]=String(r3(+t[i-1]+(+t[i+1])/100));t.splice(i+1,1);continue;}
+    if((w==='centimo'||w==='centimos')&&isNum(t[i-1])){t[i-1]=String(r3(+t[i-1]/100));t[i]='sol';continue;}
     if(w==='medio'||w==='media'){
       if(t[i-1]==='y'){
         let j=i-2;if(UNITS[t[j]])j--;
@@ -6692,6 +6706,20 @@ function resolveQty(row,p){
   const n=row.n==null?1:row.n,su=row.unit,pu=baseU(p),pres=presList(p);
   const res={qty:n,pres:0,note:'',warn:false};
   const findPres=re=>pres.findIndex(x=>re.test(nz(x.name)));
+  const price0=Number((pres[0]&&pres[0].price)||p.price)||0;
+  const hasSize=/\d\s*(kg|g|gr|ml|l|lt|litros?|gramos?|kilos?)\b/.test(nz(p.name));
+  if(su&&(su.k==='m'||su.k==='cent')){
+    const amt=su.k==='cent'?n/100:n;
+    if(price0<=0){res.warn=true;res.note='El producto no tiene precio. No se puede calcular por monto.';res.qty=1;return res;}
+    const raw=amt/price0;
+    if(pu||(!hasSize&&(raw<1||!Number.isInteger(r3(raw))))){
+      res.qty=r3(raw);res.wt=pu||'kg';res.money=amt;
+      res.note=`S/ ${amt.toFixed(2)} de ${p.name} = ${res.qty} ${res.wt} (precio ${fm(price0)} por ${res.wt}).`;
+    }else{
+      res.qty=Math.max(1,Math.floor(raw+1e-9));res.note=`S/ ${amt.toFixed(2)} → ${res.qty} unidad(es) a ${fm(price0)}.`;
+    }
+    return res;
+  }
   if(su){
     const k=su.k;
     if(k==='kg'||k==='g'||k==='l'||k==='ml'){
@@ -6707,6 +6735,12 @@ function resolveQty(row,p){
         const re=k==='kg'?/\bkg\b|kilo/:k==='g'?/\bgr?\b|gramo/:k==='l'?/\bl\b|\blt\b|litro/:/\bml\b|mililitro/;
         const i=findPres(re);
         if(i>=0){res.pres=i;}
+        else if(!hasSize){
+          /* producto registrado "por 1 kg/l": se permite vender fracciones */
+          const base=cls==='w'?'kg':'l',f={kg:1000,g:1,l:1000,ml:1};
+          res.qty=r3(n*f[k]/f[base]);res.wt=base;
+          if(res.qty<1||k==='g'||k==='ml')res.note=`Se vende por ${base}: ${res.qty} ${base} a ${fm(price0)} el ${base}.`;
+        }
         else{res.warn=true;res.note=`${p.name} no está configurado por ${k}. Se agregó ${n} unidad(es); revisa.`;res.qty=Math.max(1,Math.round(n));}
       }
     }else if(k==='doc'){
@@ -6718,7 +6752,7 @@ function resolveQty(row,p){
       if(i>=0)res.pres=i;
     }
   }
-  const unitBased=pu||/kg|kilo|litro|gramo/.test(nz(pres[res.pres]&&pres[res.pres].name));
+  const unitBased=pu||res.wt||/kg|kilo|litro|gramo/.test(nz(pres[res.pres]&&pres[res.pres].name));
   if(!unitBased&&!Number.isInteger(res.qty)){res.qty=Math.max(1,Math.round(res.qty));res.note=(res.note?res.note+' ':'')+'Cantidad redondeada (producto por unidad).';}
   res.qty=r3(res.qty);
   return res;
@@ -6743,7 +6777,7 @@ function parseUtterance(text){
       if(c2.length&&hasNum&&(!c1.length||(c2[0].p.id===c1[0].p.id&&c2[0].score>=c1[0].score-.01)||c2[0].score>c1[0].score+.08)){c=c2;sizeUsed=true;}
     }
     const row={id:++_rid,said:s.said,name:s.words.join(' '),n:sizeUsed&&!s.size?1:s.n,unit:sizeUsed&&!s.size?null:s.unit,unitWord:s.unitWord,
-      cands:c,pid:null,qty:1,pres:0,note:'',status:'none',checked:true,added:false,manual:false};
+      cands:c,pid:null,qty:1,pres:0,note:'',status:'none',checked:false,added:false,manual:false};
     if(sizeUsed&&s.size&&s.n!=null){row.n=s.n;row.unit=s.unit;}
     if(c.length){
       const top=c[0];row.pid=top.p.id;
@@ -6752,6 +6786,7 @@ function parseUtterance(text){
       if(row.status==='none')row.pid=null;
     }
     recalc(row);
+    row.checked=row.status==='ok'&&!!row.pid;
     return row;
   });
 }
@@ -6759,9 +6794,9 @@ function prod(id){return (state.products||[]).find(p=>String(p.id)===String(id))
 function recalc(row){
   const p=prod(row.pid);
   row.note='';
-  if(!p){row.qty=row.n==null?1:row.n;row.pres=0;row.note=row.status==='none'?'No encontré este producto. Elígelo de la lista.':'';return;}
+  row.wt='';if(!p){row.qty=row.n==null?1:row.n;row.pres=0;row.note=row.status==='none'?'No encontré este producto. Elígelo de la lista.':'';return;}
   const r=resolveQty(row,p);
-  row.qty=r.qty;row.pres=r.pres;row.note=r.note;
+  row.qty=r.qty;row.pres=r.pres;row.note=r.note;row.wt=r.wt||'';row.money=r.money||0;
   if(r.warn&&row.status==='ok')row.status='check';
   const pr=presList(p)[row.pres]||presList(p)[0],f=Number(pr.factor)||1;
   if(row.qty*f>(Number(p.stock)||0)+1e-9){row.note=(row.note?row.note+' ':'')+`Stock disponible: ${Number(p.stock)||0}.`;if(row.status==='ok')row.status='check';}
@@ -6769,19 +6804,19 @@ function recalc(row){
 }
 
 /* ================= 7. AGREGAR A LA CANASTA ================= */
-function addToCart(p,qty,presIndex){
+function addToCart(p,qty,presIndex,wt){
   window.__astoreSaleJustCompleted=false;
   const list=presList(p),pres=list[presIndex]||list[0],factor=Number(pres.factor)||1;
   const inCart=state.cart.filter(c=>String(c.id)===String(p.id)).reduce((a,c)=>a+(Number(c.qty)||0)*(Number(c.factor)||1),0);
   const avail=(Number(p.stock)||0)-inCart;
   let q=qty,clamped=false;
   if(q*factor>avail+1e-9){q=Math.floor((avail/factor)*1000)/1000;clamped=true;}
-  const integerOnly=!baseU(p)&&!/kg|kilo|litro|gramo/.test(nz(pres.name));
+  const integerOnly=!wt&&!baseU(p)&&!/kg|kilo|litro|gramo/.test(nz(pres.name));
   if(integerOnly)q=Math.floor(q+1e-9);
   if(q<=0)return{ok:false,clamped:true,qty:0};
   const key=`${p.id}__${pres.name}`,line=state.cart.find(x=>x.key===key);
-  if(line)line.qty=r3(line.qty+q);
-  else state.cart.push({key,id:p.id,name:p.name,presName:pres.name,factor,price:Number(pres.price)||Number(p.price)||0,qty:q});
+  if(line){line.qty=r3(line.qty+q);if(wt)line.wt=wt;}
+  else state.cart.push({key,id:p.id,name:p.name,presName:pres.name,factor,price:Number(pres.price)||Number(p.price)||0,qty:q,...(wt?{wt}:{})});
   return{ok:true,clamped,qty:q};
 }
 function flushCart(){
@@ -6821,7 +6856,7 @@ function ensureModal(){
   const box=$('avvRows');
   box.addEventListener('change',onRowChange);
   box.addEventListener('input',e=>{if(e.target.classList.contains('av-find'))onFind(e.target);});
-  box.addEventListener('click',e=>{const d=e.target.closest('.av-del');if(d){rows=rows.filter(r=>r.id!==+d.dataset.id);render();}});
+  box.addEventListener('click',e=>{const cf=e.target.closest('.av-confirm');if(cf){const r=rows.find(x=>x.id===+cf.dataset.id);if(r){r.status='ok';r.checked=true;r.manual=true;render();}return;}const d=e.target.closest('.av-del');if(d){rows=rows.filter(r=>r.id!==+d.dataset.id);render();}});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&m.classList.contains('open'))closeVoice();});
 }
 function setStatus(a,b){const s=$('avvStatus');if(s)s.innerHTML=esc(a)+(b?`<small>${esc(b)}</small>`:'');}
@@ -6877,7 +6912,7 @@ function ingest(text){
   if(!fresh.length){toast('error','No entendí',`“${text}”`,'!');return;}
   fresh.forEach(r=>{
     if(autoAdd&&r.status==='ok'&&r.pid&&!r.note){
-      const p=prod(r.pid),res=p&&addToCart(p,r.qty,r.pres);
+      const p=prod(r.pid),res=p&&addToCart(p,r.qty,r.pres,r.wt);
       if(res&&res.ok){r.added=true;r.checked=false;}
     }
     rows.push(r);
@@ -6907,6 +6942,7 @@ function render(){
         <div class="av-r2">${r.added?`<b>${esc(p?p.name:'')}</b>`:sel+find}</div>
         ${p?`<div class="av-r3"><input class="av-qty" data-id="${r.id}" inputmode="decimal" value="${r.qty}" aria-label="Cantidad" ${r.added?'disabled':''}><span class="av-unit">${esc(unitLabel(r))}</span><span class="av-sub">${fm(priceOf(r))}</span></div>`:''}
         ${r.note&&!r.added?`<div class="av-note">${esc(r.note)}</div>`:''}
+        ${p&&r.status==='check'&&!r.added?`<button type="button" class="primary av-confirm" data-id="${r.id}" style="min-height:42px;font-weight:800">✓ Sí, es este producto</button>`:''}
       </div>`;
     }).join('');
   }
@@ -6915,7 +6951,8 @@ function render(){
   const pend=rows.filter(r=>r.checked&&!r.added&&prod(r.pid));
   const total=pend.reduce((a,r)=>a+priceOf(r),0);
   $('avvTot').innerHTML=pend.length?`${pend.length} producto${pend.length===1?'':'s'}<b>${fm(total)}</b>`:(rows.length?'Nada pendiente':'');
-  $('avvAdd').textContent=pend.length?`Agregar ${pend.length} a la canasta`:'Listo';
+  const dudas=rows.filter(r=>!r.added&&r.status==='check').length;
+  $('avvAdd').textContent=pend.length?`Agregar ${pend.length} a la canasta`:(dudas?`${dudas} por confirmar`:'Listo');
   $('avvAdd').disabled=false;
 }
 function rowOf(el){const id=+(el.dataset.id||el.closest('[data-id]')?.dataset.id);return rows.find(r=>r.id===id);}
@@ -6944,11 +6981,11 @@ function commit(){
   if(!pend.length){
     if(rows.length&&rows.every(r=>r.added)){closeVoice();return;}
     if(!rows.length){closeVoice();return;}
-    toast('error','Nada para agregar','Elige un producto en las filas marcadas en rojo.','!');return;
+    toast('error','Nada para agregar','Confirma las filas amarillas (✓ Sí, es este producto) o elige el producto en las rojas.','!');return;
   }
   let ok=0,clamp=[];
   pend.forEach(r=>{
-    const p=prod(r.pid),res=addToCart(p,r.qty,r.pres);
+    const p=prod(r.pid),res=addToCart(p,r.qty,r.pres,r.wt);
     if(res.ok){ok++;r.added=true;r.checked=false;if(res.clamped)clamp.push(`${p.name} (${res.qty})`);}
     else clamp.push(`${p.name} (sin stock)`);
   });
@@ -6964,6 +7001,362 @@ window.startVoiceSearch=openVoice;
 window.avParse=parseUtterance;   /* para pruebas */
 window.avVoiceState=()=>rows;
 window.avIngest=ingest;
+})();
+</script>
+<script id="av-patch-restore">
+/* ===== RESTAURACIÓN: caja, fiados, auditoría, centro de revisión, kit contable ===== */
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nz=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const fm=v=>{try{return money(v)}catch(e){return 'S/ '+(Number(v)||0).toFixed(2)}};
+const toast=(t,a,b,i)=>{try{showAppToast(t,a,b,i)}catch(e){console.log(a,b)}};
+const persist=()=>{try{save()}catch(e){console.warn('save',e)}};
+const today=()=>new Date().toLocaleDateString('es-PE');
+const nowT=()=>new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+const num=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isFinite(n)?n:NaN;};
+const kpi=(l,v,c)=>`<div class="audit-kpi"><span style="font-size:12px;color:var(--muted);font-weight:700">${esc(l)}</span><b${c?` style="color:${c}"`:''}>${v}</b></div>`;
+const def=(n,f)=>{if(typeof window[n]!=='function')window[n]=f;};
+function cashState(){
+  state.cash=state.cash||{open:false,opening:0,movements:[]};
+  state.cash.movements=Array.isArray(state.cash.movements)?state.cash.movements:[];
+  state.cash.closures=Array.isArray(state.cash.closures)?state.cash.closures:[];
+  return state.cash;
+}
+
+/* ---------------- CAJA ---------------- */
+const SIGN={VENTA:1,COBRO_FIADO:1,DEVOLUCION:-1,EGRESO:-1,APERTURA:0,CIERRE:0};
+function saleOfMovement(m){
+  const c=String(m.concept||'');
+  const code=(/^Anulaci[oó]n\s+(\S+)/i.exec(c)||[])[1]||c.split(' · ')[0].trim();
+  return (state.sales||[]).find(s=>s.comprobante===code);
+}
+/* reparte un movimiento en efectivo / digital / tarjeta */
+function splitMovement(m){
+  const a=Number(m.amount)||0,pay=String(m.payment||'Efectivo');
+  if(pay==='Mixto'){
+    const s=saleOfMovement(m),b=s&&s.paymentBreakdown;
+    if(b){const tot=(Number(b.cash)||0)+(Number(b.digital)||0)||1;return{ef:a*(Number(b.cash)||0)/tot,yape:a*(Number(b.digital)||0)/tot,tarjeta:0};}
+    return{ef:a,yape:0,tarjeta:0};
+  }
+  if(pay==='Yape/Plin')return{ef:0,yape:a,tarjeta:0};
+  if(pay==='Tarjeta')return{ef:0,yape:0,tarjeta:a};
+  return{ef:a,yape:0,tarjeta:0};
+}
+function sessionMovements(){
+  const c=cashState();if(!c.open)return[];
+  const n=Math.max(0,c.movements.length-(Number(c.baseCount)||0));
+  return c.movements.slice(0,n);
+}
+function cashTotals(){
+  const c=cashState(),t={ef:0,yape:0,tarjeta:0,ingresos:0,egresos:0,devol:0,opening:Number(c.opening)||0};
+  sessionMovements().forEach(m=>{
+    const sg=SIGN[m.type];if(!sg)return;
+    const sp=splitMovement(m);
+    t.ef+=sg*sp.ef;t.yape+=sg*sp.yape;t.tarjeta+=sg*sp.tarjeta;
+    if(m.type==='EGRESO')t.egresos+=Number(m.amount)||0;
+    else if(m.type==='DEVOLUCION')t.devol+=Number(m.amount)||0;
+    else t.ingresos+=Number(m.amount)||0;
+  });
+  t.expected=t.opening+t.ef;
+  return t;
+}
+def('renderCash',function(){
+  const c=cashState(),t=cashTotals(),set=(id,v,html)=>{const e=$(id);if(e)html?e.innerHTML=v:e.textContent=v;};
+  set('cashStatus',c.open?'🟢 Abierta':'🔴 Cerrada');
+  set('cashOpening',fm(c.open?t.opening:0));
+  set('cashIncome',fm(t.ingresos-t.devol));
+  set('cashExpected',fm(c.open?t.expected:0));
+  set('cashEfectivo',fm(t.ef));set('cashYape',fm(t.yape));set('cashTarjeta',fm(t.tarjeta));set('cashExpenses',fm(t.egresos));
+  const body=$('cashMovementsList');
+  if(body){
+    const rows=c.movements.slice(0,80);
+    body.innerHTML=rows.length?rows.map(m=>{
+      const sg=SIGN[m.type],col=sg>0?'#15803d':sg<0?'#dc2626':'#64748b';
+      const label={VENTA:'Venta',COBRO_FIADO:'Cobro fiado',DEVOLUCION:'Devolución',EGRESO:'Egreso',APERTURA:'Apertura',CIERRE:'Cierre'}[m.type]||m.type;
+      return `<tr><td>${esc(m.date||'')} ${esc(m.time||'')}</td><td>${esc(label)}</td><td>${esc(m.concept||'')}</td><td>${esc(m.payment||'')}</td><td style="font-weight:800;color:${col};white-space:nowrap">${sg<0?'−':sg>0?'+':''}${fm(m.amount)}</td></tr>`;
+    }).join(''):'<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--muted)">Sin movimientos todavía.</td></tr>';
+  }
+  const cl=$('cashClosuresList');
+  if(cl){
+    cl.innerHTML=c.closures.length?c.closures.slice(0,30).map(x=>{
+      const d=Number(x.diff)||0,col=Math.abs(d)<0.005?'#15803d':'#dc2626';
+      return `<div style="border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff;color:var(--text)"><b>${esc(x.date)} ${esc(x.time||'')}</b> · Apertura ${fm(x.opening)} · Esperado ${fm(x.expected)} · Contado ${fm(x.counted)} · <b style="color:${col}">${Math.abs(d)<0.005?'Cuadra':(d>0?'Sobra ':'Falta ')+fm(Math.abs(d))}</b><br><small style="color:var(--muted)">Efectivo ${fm(x.efectivo)} · Yape/Plin ${fm(x.yape)} · Tarjeta ${fm(x.tarjeta)} · Egresos ${fm(x.egresos)}</small></div>`;
+    }).join(''):'Sin cierres registrados.';
+  }
+});
+def('openCashPrompt',function(){
+  const c=cashState();
+  if(c.open){toast('error','La caja ya está abierta','Haz el cierre antes de abrir otra.','!');return;}
+  showCustomPrompt('Apertura de caja','Efectivo con el que empiezas (S/):','0.00',v=>{
+    const n=num(v);
+    if(!isFinite(n)||n<0){toast('error','Monto inválido','Ingresa un monto igual o mayor a 0.','!');return;}
+    c.baseCount=c.movements.length;c.open=true;c.opening=Number(n.toFixed(2));c.openedAt=new Date().toISOString();
+    c.movements.unshift({date:today(),time:nowT(),type:'APERTURA',concept:'Apertura de caja',payment:'Efectivo',amount:c.opening});
+    persist();renderCash();toast('success','Caja abierta','Saldo inicial '+fm(c.opening),'✓');
+  });
+});
+def('closeCash',function(){
+  const c=cashState();
+  if(!c.open){toast('error','La caja está cerrada','Primero abre la caja.','!');return;}
+  const t=cashTotals();
+  showCustomPrompt('Cierre de caja',`Efectivo esperado: ${fm(t.expected)}. Escribe el efectivo que contaste (S/):`,t.expected.toFixed(2),v=>{
+    const counted=num(v);
+    if(!isFinite(counted)||counted<0){toast('error','Monto inválido','Ingresa el efectivo contado.','!');return;}
+    const diff=Number((counted-t.expected).toFixed(2));
+    const closure={id:'CC'+Date.now(),date:today(),time:nowT(),openedAt:c.openedAt||'',opening:t.opening,efectivo:Number(t.ef.toFixed(2)),yape:Number(t.yape.toFixed(2)),tarjeta:Number(t.tarjeta.toFixed(2)),egresos:Number(t.egresos.toFixed(2)),ingresos:Number((t.ingresos-t.devol).toFixed(2)),expected:Number(t.expected.toFixed(2)),counted:Number(counted.toFixed(2)),diff,movements:sessionMovements().length};
+    c.closures.unshift(closure);
+    c.movements.unshift({date:today(),time:nowT(),type:'CIERRE',concept:'Cierre de caja'+(diff?` (${diff>0?'sobra':'falta'} ${fm(Math.abs(diff))})`:''),payment:'Efectivo',amount:Number(counted.toFixed(2))});
+    c.open=false;c.opening=0;c.baseCount=c.movements.length;
+    persist();renderCash();
+    appAlert(Math.abs(diff)<0.005?`Caja cuadrada. Ventas del turno: ${fm(closure.ingresos)}.`:`${diff>0?'Sobra':'Falta'} ${fm(Math.abs(diff))} en caja. Esperado ${fm(closure.expected)}, contado ${fm(closure.counted)}.`,Math.abs(diff)<0.005?'success':'warning','Caja cerrada');
+  });
+});
+def('addCashExpense',function(){
+  const c=cashState();
+  if(!c.open){toast('error','Caja cerrada','Abre la caja para registrar egresos.','!');return;}
+  showCustomPrompt('Egreso de caja','Monto que sale de la caja (S/):','',a=>{
+    const amount=num(a);
+    if(!isFinite(amount)||amount<=0){toast('error','Monto inválido','Ingresa un monto mayor a 0.','!');return;}
+    const t=cashTotals();
+    if(amount>t.expected+0.004)toast('warning','Atención','El egreso supera el efectivo esperado en caja.','⚠️');
+    showCustomPrompt('Egreso de caja','¿En qué se gastó? (concepto):','',cn=>{
+      const concept=String(cn||'').trim();
+      if(!concept){toast('error','Falta el concepto','Describe el gasto.','!');return;}
+      const id='G'+Date.now(),d=new Date(),iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      c.movements.unshift({date:today(),time:nowT(),type:'EGRESO',concept:`Caja · ${concept}`,payment:'Efectivo',amount:Number(amount.toFixed(2)),expenseId:id});
+      state.expenses=Array.isArray(state.expenses)?state.expenses:[];
+      state.expenses.unshift({id,date:iso,category:'Caja chica',concept,supplier:'',docType:'Sin comprobante',docNo:'',amount:Number(amount.toFixed(2)),igv:0,payment:'Efectivo (caja)'});
+      try{if(typeof acctRebuild==='function')acctRebuild();}catch(e){}
+      persist();renderCash();try{if(typeof renderAccounting==='function')renderAccounting();}catch(e){}
+      toast('success','Egreso registrado',`${concept} · ${fm(amount)}`,'✓');
+    });
+  });
+});
+
+/* ---------------- FIADOS ---------------- */
+function fiados(){ensureFiadosState();state.fiadoPayments=Array.isArray(state.fiadoPayments)?state.fiadoPayments:[];return state.fiados;}
+const fkey=f=>String(f.clientId||f.document||nz(f.name)||'sin-cliente');
+function fiadoGroups(){
+  const g={};
+  fiados().filter(f=>(Number(f.balance)||0)>0.009).forEach(f=>{
+    const k=fkey(f);(g[k]=g[k]||{key:k,name:f.name||'Cliente',document:f.document||'',phone:f.phone||'',items:[],debt:0}).items.push(f);
+    g[k].debt+=Number(f.balance)||0;if(f.phone)g[k].phone=f.phone;
+  });
+  return Object.values(g).sort((a,b)=>b.debt-a.debt);
+}
+function daysSince(dateStr){
+  const m=String(dateStr||'').split('/');if(m.length!==3)return 0;
+  const d=new Date(+m[2],+m[1]-1,+m[0]);return Math.floor((Date.now()-d.getTime())/86400000);
+}
+def('renderFiados',function(){
+  const list=fiadoGroups(),total=list.reduce((a,g)=>a+g.debt,0);
+  const paid=(state.fiadoPayments||[]).reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const old=fiados().filter(f=>(Number(f.balance)||0)>0.009&&daysSince(f.date)>30).length;
+  const sum=$('fiadosSummary');
+  if(sum)sum.innerHTML=kpi('Deuda total',fm(total),total>0?'#dc2626':'')+kpi('Clientes con deuda',list.length)+kpi('Cobrado (abonos)',fm(paid),'#15803d')+kpi('Deudas de +30 días',old,old?'#b45309':'');
+  const box=$('fiadoList');if(!box)return;
+  if(!list.length){box.innerHTML='<div class="empty" style="padding:22px;text-align:center;color:var(--muted)">No hay fiados pendientes. Cuando vendas con método “Fiado” aparecerán aquí.</div>';return;}
+  box.innerHTML=list.map(g=>{
+    const ph=String(g.phone||'').replace(/\D/g,'');
+    return `<div class="card" style="margin-bottom:10px;padding:14px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap"><div><b style="font-size:16px">${esc(g.name)}</b><div style="font-size:12px;color:var(--muted)">${esc(g.document||'sin documento')}${g.phone?' · '+esc(g.phone):''}</div></div><div style="text-align:right"><div style="font-size:12px;color:var(--muted)">Debe</div><b style="font-size:20px;color:#dc2626">${fm(g.debt)}</b></div></div>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px;font-weight:700">${g.items.length} compra${g.items.length===1?'':'s'} pendiente${g.items.length===1?'':'s'}</summary>${g.items.map(f=>{const d=daysSince(f.date);return `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px"><span>${esc(f.saleId)} · ${esc(f.date)}${d>30?` <b style="color:#b45309">(${d} días)</b>`:''}</span><span>${fm(f.balance)} <small style="color:var(--muted)">de ${fm(f.amount)}</small></span></div>`;}).join('')}</details>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="primary" onclick="payFiadoClient('${esc(g.key).replace(/'/g,"\\'")}')">💵 Abonar / cobrar</button>${ph?`<a class="secondary" style="display:inline-flex;align-items:center;padding:0 14px;border-radius:12px;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/51${ph.replace(/^51/,'')}?text=${encodeURIComponent(`Hola ${g.name}, te recordamos tu saldo pendiente de ${fm(g.debt)}. ¡Gracias!`)}">📱 Recordar</a>`:''}</div></div>`;
+  }).join('');
+});
+function ensurePayModal(){
+  if($('avPayModal'))return;
+  const m=document.createElement('div');m.id='avPayModal';m.className='av-modal';
+  m.innerHTML=`<div class="av-sheet" role="dialog" aria-modal="true"><div class="av-head"><h3 id="avpTitle">Cobrar fiado</h3><button type="button" class="av-x" id="avpX" aria-label="Cerrar">×</button></div><div class="av-body"><div id="avpInfo" class="av-hint"></div><div class="av-field"><label>Monto a cobrar (S/)</label><input id="avpAmount" inputmode="decimal" autocomplete="off"></div><div class="av-field"><label>Método de pago</label><div class="av-chips" id="avpMethods"><button type="button" data-m="Efectivo" class="on">💵 Efectivo</button><button type="button" data-m="Yape/Plin">📱 Yape/Plin</button><button type="button" data-m="Tarjeta">💳 Tarjeta</button></div></div></div><div class="av-foot"><button type="button" class="secondary" id="avpAll">Todo</button><button type="button" class="primary" id="avpOk">Registrar cobro</button></div></div>`;
+  document.body.appendChild(m);
+  const st=document.createElement('style');st.textContent='#avpMethods button.on{background:var(--primary,#0b6b4f);color:#fff;border-color:var(--primary,#0b6b4f)}';document.head.appendChild(st);
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+  $('avpX').onclick=()=>m.classList.remove('open');
+  $('avpMethods').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...$('avpMethods').children].forEach(x=>x.classList.toggle('on',x===b));});
+  m.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('avpOk').click();}if(e.key==='Escape')m.classList.remove('open');});
+}
+def('payFiadoClient',function(key){
+  const g=fiadoGroups().find(x=>x.key===String(key));if(!g)return;
+  ensurePayModal();const m=$('avPayModal');
+  $('avpTitle').textContent='Cobrar a '+g.name;
+  $('avpInfo').innerHTML=`Deuda actual: <b>${fm(g.debt)}</b>. Puedes cobrar todo o un abono parcial; se aplica primero a la deuda más antigua.`;
+  $('avpAmount').value=g.debt.toFixed(2);
+  [...$('avpMethods').children].forEach((x,i)=>x.classList.toggle('on',i===0));
+  $('avpAll').onclick=()=>{$('avpAmount').value=g.debt.toFixed(2);};
+  $('avpOk').onclick=()=>{
+    const amt=num($('avpAmount').value);
+    if(!isFinite(amt)||amt<=0){toast('error','Monto inválido','Ingresa cuánto te pagó.','!');return;}
+    if(amt>g.debt+0.004){toast('error','Monto mayor a la deuda','La deuda es '+fm(g.debt),'!');return;}
+    const method=$('avpMethods').querySelector('.on')?.dataset.m||'Efectivo';
+    applyFiadoPayment(g,amt,method);m.classList.remove('open');
+  };
+  m.classList.add('open');setTimeout(()=>{$('avpAmount').focus();$('avpAmount').select();},60);
+});
+function applyFiadoPayment(g,amount,method){
+  let left=amount;const c=cashState();
+  const items=g.items.slice().sort((a,b)=>daysSince(b.date)-daysSince(a.date));
+  items.forEach(f=>{
+    if(left<=0.004)return;
+    const pay=Math.min(left,Number(f.balance)||0);if(pay<=0)return;
+    f.balance=Number(((Number(f.balance)||0)-pay).toFixed(2));if(f.balance<=0.009){f.balance=0;f.status='Pagado';f.paidAt=today();}
+    left=Number((left-pay).toFixed(2));
+    state.fiadoPayments.push({id:'FP'+Date.now()+Math.floor(Math.random()*1000),fiadoId:f.id,saleId:f.saleId,clientId:f.clientId||null,name:f.name,date:today(),time:nowT(),method,payment:method,amount:Number(pay.toFixed(2))});
+  });
+  if(c.open)c.movements.unshift({date:today(),time:nowT(),type:'COBRO_FIADO',concept:`Cobro fiado · ${g.name}`,payment:method,amount:Number(amount.toFixed(2))});
+  try{if(typeof acctRebuild==='function')acctRebuild();}catch(e){}
+  persist();renderFiados();renderCash();
+  toast('success','Cobro registrado',`${g.name} · ${fm(amount)}${c.open?'':' (caja cerrada: no suma a caja)'}`,'✓');
+}
+
+/* ---------------- AUDITORÍA ---------------- */
+function auditChecks(){
+  const R=[],add=(level,area,title,detail,go)=>R.push({level,area,title,detail,go});
+  const sales=(state.sales||[]).filter(s=>s.status!=='ANULADA'),prods=state.products||[];
+  /* ventas */
+  const bad=sales.filter(s=>{const g=(s.items||[]).reduce((a,i)=>a+(Number(i.price)||0)*(Number(i.qty)||0),0);return Math.abs(g-(Number(s.gross)||g))>0.05||Math.abs((Number(s.gross)||g)-(Number(s.discount)||0)-(Number(s.total)||0))>0.05;});
+  bad.length?add('error','Ventas',`${bad.length} venta(s) con total que no coincide con sus ítems`,bad.slice(0,5).map(s=>s.comprobante).join(', '),'ventas'):add('ok','Ventas',`${sales.length} venta(s) con totales consistentes`,'Total = ítems − descuento.');
+  const seen={},dup=[];sales.forEach(s=>{if(seen[s.comprobante])dup.push(s.comprobante);seen[s.comprobante]=1;});
+  dup.length?add('error','Ventas','Comprobantes duplicados',[...new Set(dup)].join(', '),'ventas'):add('ok','Ventas','Sin comprobantes duplicados','');
+  /* inventario */
+  const neg=prods.filter(p=>(Number(p.stock)||0)<0);
+  neg.length?add('error','Inventario',`${neg.length} producto(s) con stock negativo`,neg.slice(0,5).map(p=>p.name).join(', '),'inventario'):add('ok','Inventario','Sin stock negativo','');
+  const nop=prods.filter(p=>!(Number(p.price)>0));
+  nop.length?add('warn','Inventario',`${nop.length} producto(s) sin precio de venta`,nop.slice(0,5).map(p=>p.name).join(', '),'productos'):add('ok','Inventario','Todos los productos tienen precio','');
+  const lose=prods.filter(p=>Number(p.price)>0&&Number(p.cost)>0&&Number(p.price)<Number(p.cost));
+  lose.length?add('warn','Inventario',`${lose.length} producto(s) con precio menor al costo`,lose.slice(0,5).map(p=>p.name).join(', '),'productos'):add('ok','Inventario','Márgenes sin pérdidas','');
+  /* kardex */
+  const kv=new Set((state.kardex||[]).filter(k=>k.type==='Venta').map(k=>k.reference));
+  const nok=sales.filter(s=>(s.items||[]).length&&!kv.has(s.comprobante));
+  nok.length?add('warn','Kardex',`${nok.length} venta(s) sin movimiento en Kardex`,nok.slice(0,5).map(s=>s.comprobante).join(', '),'kardex'):add('ok','Kardex','Cada venta tiene su salida en Kardex','');
+  /* caja */
+  const c=cashState();
+  if(c.open&&c.openedAt&&new Date(c.openedAt).toDateString()!==new Date().toDateString())add('warn','Caja','La caja sigue abierta de un día anterior',`Abierta el ${new Date(c.openedAt).toLocaleDateString('es-PE')}. Haz el cierre.`,'caja');
+  else add('ok','Caja',c.open?'Caja abierta del día':'Caja cerrada','');
+  const orphan=c.movements.filter(m=>m.type==='VENTA'&&!saleOfMovement(m));
+  orphan.length?add('warn','Caja',`${orphan.length} movimiento(s) de venta sin comprobante asociado`,orphan.slice(0,3).map(m=>m.concept).join(' | '),'caja'):add('ok','Caja','Movimientos de venta enlazados a comprobantes','');
+  /* fiados */
+  const pays=state.fiadoPayments||[];
+  const incons=fiados().filter(f=>{const p=pays.filter(x=>String(x.fiadoId)===String(f.id)||(!x.fiadoId&&x.saleId===f.saleId)).reduce((a,x)=>a+(Number(x.amount)||0),0);return Math.abs((Number(f.amount)||0)-p-(Number(f.balance)||0))>0.05;});
+  incons.length?add('error','Fiados',`${incons.length} fiado(s) con saldo que no cuadra con sus abonos`,incons.slice(0,5).map(f=>f.saleId).join(', '),'fiados'):add('ok','Fiados','Saldos de fiados consistentes','');
+  const nofi=sales.filter(s=>String(s.payment||'').toLowerCase()==='fiado'&&!fiados().some(f=>f.saleId===s.comprobante));
+  nofi.length?add('error','Fiados',`${nofi.length} venta(s) a fiado sin registro en el cuaderno`,nofi.slice(0,5).map(s=>s.comprobante).join(', '),'fiados'):add('ok','Fiados','Todas las ventas a fiado están en el cuaderno','');
+  const old=fiados().filter(f=>(Number(f.balance)||0)>0.009&&daysSince(f.date)>30);
+  if(old.length)add('warn','Fiados',`${old.length} deuda(s) de más de 30 días`,old.slice(0,5).map(f=>f.name).join(', '),'fiados');
+  /* contabilidad */
+  try{const ent=(state.accounting&&(state.accounting.entries||state.accounting.journal))||[];
+    if(Array.isArray(ent)&&ent.length){const unb=ent.filter(e=>Math.abs((e.lines||[]).reduce((a,l)=>a+(Number(l.debit)||0)-(Number(l.credit)||0),0))>0.02);
+      unb.length?add('error','Contabilidad',`${unb.length} asiento(s) descuadrados`,unb.slice(0,3).map(e=>e.id).join(', '),'contador'):add('ok','Contabilidad',`${ent.length} asiento(s) cuadrados`,'Debe = Haber.');}}catch(e){}
+  return R;
+}
+const ICON={ok:'✅',warn:'⚠️',error:'❌'};
+function renderResults(R,sumEl,listEl){
+  const n=l=>R.filter(r=>r.level===l).length;
+  if(sumEl)sumEl.innerHTML=kpi('Controles',R.length)+kpi('Correctos',n('ok'),'#15803d')+kpi('Advertencias',n('warn'),n('warn')?'#b45309':'')+kpi('Errores',n('error'),n('error')?'#dc2626':'');
+  if(listEl){
+    const ord={error:0,warn:1,ok:2};
+    listEl.innerHTML=R.slice().sort((a,b)=>ord[a.level]-ord[b.level]).map(r=>`<div class="audit-item" style="border-left:4px solid ${r.level==='ok'?'#22c55e':r.level==='warn'?'#f59e0b':'#ef4444'}"><span style="font-size:18px">${ICON[r.level]}</span><div style="flex:1"><b>${esc(r.title)}</b><span style="font-size:12px;color:var(--muted)">${esc(r.area)}${r.detail?' · '+esc(r.detail):''}</span></div>${r.go&&r.level!=='ok'?`<button class="secondary" style="padding:6px 10px;font-size:12px" onclick="try{goTo('${r.go}')}catch(e){}">Ver</button>`:''}</div>`).join('');
+  }
+}
+def('runAudit',function(verbose){
+  const R=auditChecks();window.__auditLast=R;
+  renderResults(R,$('auditSummary'),$('auditResults'));
+  const e=R.filter(r=>r.level==='error').length,w=R.filter(r=>r.level==='warn').length;
+  const st=$('auditStatus');if(st){st.textContent=(e?`❌ ${e} error(es) y ${w} advertencia(s)`:w?`⚠️ ${w} advertencia(s), sin errores`:'✅ Todo conectado y consistente')+' · '+new Date().toLocaleString('es-PE');st.style.color=e?'#dc2626':w?'#b45309':'#15803d';}
+  if(verbose===true)toast(e?'error':w?'warning':'success','Auditoría terminada',e?`${e} error(es) por corregir`:w?`${w} advertencia(s)`:'Sin problemas','🛡️');
+  return R;
+});
+def('exportAuditCSV',function(){
+  const R=window.__auditLast||auditChecks();
+  const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+  const csv=['Nivel,Área,Control,Detalle',...R.map(r=>[r.level,r.area,r.title,r.detail].map(q).join(','))].join('\n');
+  download('auditoria.csv',csv);
+});
+function download(name,text,type){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+text],{type:type||'text/csv;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},600);
+}
+
+/* ---------------- CENTRO DE REVISIÓN ---------------- */
+def('renderReviewCenter',function(verbose){
+  const prods=state.products||[],I=[],add=(level,title,detail,go,label)=>I.push({level,title,detail,go,label});
+  const out=prods.filter(p=>(Number(p.stock)||0)<=0),low=prods.filter(p=>(Number(p.stock)||0)>0&&(Number(p.stock)||0)<=(Number(p.min)||0));
+  if(out.length)add('error',`${out.length} producto(s) sin stock`,out.slice(0,6).map(p=>p.name).join(', '),'reposicionPro','Reponer');
+  if(low.length)add('warn',`${low.length} producto(s) con stock bajo`,low.slice(0,6).map(p=>p.name).join(', '),'reposicionPro','Reponer');
+  const nop=prods.filter(p=>!(Number(p.price)>0));if(nop.length)add('error',`${nop.length} producto(s) sin precio de venta`,nop.slice(0,6).map(p=>p.name).join(', '),'productos','Poner precio');
+  const noc=prods.filter(p=>!(Number(p.cost)>0));if(noc.length)add('warn',`${noc.length} producto(s) sin costo`,'Sin costo no se calcula bien la ganancia.','productos','Completar');
+  const lose=prods.filter(p=>Number(p.price)>0&&Number(p.cost)>0&&Number(p.price)<Number(p.cost));if(lose.length)add('error',`${lose.length} producto(s) se venden por debajo del costo`,lose.slice(0,6).map(p=>p.name).join(', '),'productos','Corregir');
+  const nowD=new Date();nowD.setHours(0,0,0,0);
+  const exp=prods.filter(p=>p.expiry&&new Date(p.expiry)<nowD),soon=prods.filter(p=>{if(!p.expiry)return false;const d=new Date(p.expiry);return d>=nowD&&(d-nowD)/86400000<=15;});
+  if(exp.length)add('error',`${exp.length} producto(s) vencido(s)`,exp.slice(0,6).map(p=>p.name).join(', '),'productos','Revisar');
+  if(soon.length)add('warn',`${soon.length} producto(s) vencen en 15 días`,soon.slice(0,6).map(p=>p.name).join(', '),'productos','Revisar');
+  const nob=prods.filter(p=>!p.barcode&&!p.image);if(nob.length)add('info',`${nob.length} producto(s) sin código ni foto`,'Complétalos para vender más rápido con escáner o foto.','productos','Completar');
+  const c=cashState();if(c.open&&c.openedAt&&new Date(c.openedAt).toDateString()!==new Date().toDateString())add('warn','Caja abierta de un día anterior','Haz el cierre de caja.','caja','Ir a caja');
+  const old=fiados().filter(f=>(Number(f.balance)||0)>0.009&&daysSince(f.date)>30);if(old.length)add('warn',`${old.length} fiado(s) con más de 30 días`,old.slice(0,6).map(f=>f.name).join(', '),'fiados','Cobrar');
+  const sum=$('reviewSummary'),panel=$('reviewPanel');
+  const n=l=>I.filter(i=>i.level===l).length;
+  if(sum)sum.innerHTML=kpi('Pendientes',I.length)+kpi('Urgentes',n('error'),n('error')?'#dc2626':'')+kpi('Atención',n('warn'),n('warn')?'#b45309':'')+kpi('Sugerencias',n('info'));
+  if(panel){
+    panel.innerHTML=I.length?`<div class="audit-list">${I.map(i=>`<div class="audit-item" style="border-left:4px solid ${i.level==='error'?'#ef4444':i.level==='warn'?'#f59e0b':'#3b82f6'}"><span style="font-size:18px">${i.level==='error'?'🔴':i.level==='warn'?'🟠':'🔵'}</span><div style="flex:1"><b>${esc(i.title)}</b><span style="font-size:12px;color:var(--muted)">${esc(i.detail)}</span></div><button class="secondary" style="padding:6px 10px;font-size:12px" onclick="try{goTo('${i.go}')}catch(e){}">${esc(i.label)}</button></div>`).join('')}</div>`:'<div class="empty" style="padding:24px;text-align:center">✅ Todo en orden. No hay nada que revisar.</div>';
+  }
+  if(verbose===true)toast(n('error')?'error':'success','Revisión lista',I.length?`${I.length} punto(s) por revisar`:'Todo en orden','🧭');
+  return I;
+});
+
+/* ---------------- KIT CONTABLE COMPLETO ---------------- */
+def('exportAccountingKitAll',function(){
+  try{if(typeof rebuildAccounting==='function')rebuildAccounting(false);}catch(e){}
+  const fns=['exportSalesAccountingCSV','exportPurchasesCSV','exportExpensesCSV','exportJournalCSV','exportLedgerCSV','exportTrialCSV','exportBalanceCSV','exportIncomeCSV','exportVATCSV','exportReceivablesCSV','exportUcayaliTaxCSV','exportAccountsCSV','exportKardexCSV','exportValuedInventoryCSV'].filter(n=>typeof window[n]==='function');
+  if(!fns.length){toast('error','No hay reportes','No se encontraron reportes contables.','!');return;}
+  toast('info','Descargando kit contable',`${fns.length} archivos. Si el navegador pregunta, permite descargas múltiples.`,'📥');
+  fns.forEach((n,i)=>setTimeout(()=>{try{window[n]();}catch(e){console.warn(n,e);}},i*450));
+});
+
+/* ---------------- Registro rápido (flujo antiguo): redirigir al formulario actual ---------------- */
+['startQuickProductBarcode','useQuickProductManualBarcode','handleQuickProductPhoto','continueQuickProductToData','toggleQuickProductWholesale','updateQuickProductMargin','updateQuickProductWholesaleUnitPrice'].forEach(n=>def(n,function(){
+  try{$('quickProductRegisterModal')?.classList.remove('open');if(typeof openProduct==='function')openProduct();}catch(e){}
+}));
+
+/* ---------------- refrescar al entrar a cada sección ---------------- */
+const watch={caja:()=>renderCash(),fiados:()=>renderFiados(),auditoria:()=>runAudit(false),revision:()=>renderReviewCenter(false)};
+Object.keys(watch).forEach(id=>{
+  const sec=$(id);if(!sec)return;
+  const go=()=>{if(sec.classList.contains('active')){try{watch[id]();}catch(e){console.warn(id,e);}}};
+  new MutationObserver(go).observe(sec,{attributes:true,attributeFilter:['class']});go();
+});
+
+/* ---------------- INVENTARIO y KARDEX completos (los existentes eran versiones mínimas) ---------------- */
+window.renderInventory=function(){
+  const sum=$('inventorySummary'),body=$('inventory');if(!sum&&!body)return;
+  const q=nz($('inventorySearch')?.value).trim(),f=$('inventoryStockFilter')?.value||'',sort=$('inventorySort')?.value||'name';
+  const st=p=>{const s=Number(p.stock)||0,m=Number(p.min)||0;return s<=0?'out':s<=m?'low':'ok';};
+  const mg=p=>{const pr=Number(p.price)||0,c=Number(p.cost)||0;return pr>0?((pr-c)/pr)*100:0;};
+  const val=p=>(Number(p.stock)||0)*(Number(p.cost)||0);
+  let list=(state.products||[]).filter(p=>(!q||nz([p.name,p.sku,p.barcode,p.cat,p.brand].join(' ')).includes(q))&&(!f||st(p)===f));
+  list.sort((a,b)=>sort==='stock'?(Number(a.stock)||0)-(Number(b.stock)||0):sort==='value'?val(b)-val(a):sort==='margin'?mg(b)-mg(a):String(a.name).localeCompare(String(b.name),'es'));
+  const all=state.products||[];
+  const cost=all.reduce((a,p)=>a+val(p),0),sale=all.reduce((a,p)=>a+(Number(p.stock)||0)*(Number(p.price)||0),0);
+  if(sum)sum.innerHTML=`<div class="client-stat"><span>PRODUCTOS</span><b>${all.length}</b></div><div class="client-stat"><span>VALOR A COSTO</span><b>${fm(cost)}</b></div><div class="client-stat"><span>VALOR DE VENTA</span><b>${fm(sale)}</b></div><div class="client-stat"><span>GANANCIA POTENCIAL</span><b>${fm(sale-cost)}</b></div><div class="client-stat"><span>STOCK BAJO / AGOTADO</span><b>${all.filter(p=>st(p)==='low').length} / ${all.filter(p=>st(p)==='out').length}</b></div>`;
+  if(body)body.innerHTML=list.length?list.map(p=>{
+    const s=st(p),col=s==='out'?'#dc2626':s==='low'?'#b45309':'#15803d',m=mg(p);
+    return `<tr><td><b>${esc(p.name)}</b>${p.brand?`<br><small style="color:var(--muted)">${esc(p.brand)}</small>`:''}</td><td>${esc(p.cat||'Otros')}</td><td style="color:${col};font-weight:800">${Number(p.stock)||0}${s==='low'?' ⚠️':s==='out'?' 🔴':''}</td><td>${fm(p.cost)}</td><td>${fm(p.price)}</td><td style="color:${m<0?'#dc2626':'inherit'}">${m.toFixed(0)}%</td><td>${fm(val(p))}</td></tr>`;
+  }).join(''):'<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--muted)">Sin productos que coincidan.</td></tr>';
+};
+window.renderKardex=function(){
+  const body=$('kardexList');if(!body)return;
+  const q=nz($('kardexSearch')?.value).trim(),type=$('kardexType')?.value||'',pid=$('kardexProduct')?.value||'';
+  const from=$('kardexFrom')?.value||'',to=$('kardexTo')?.value||'';
+  const sel=$('kardexProduct');
+  if(sel&&sel.options.length-1!==(state.products||[]).length){const cur=sel.value;sel.innerHTML='<option value="">Todos los productos</option>'+(state.products||[]).map(p=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');sel.value=cur;}
+  const iso=d=>{const x=String(d||'').split('/');return x.length===3?`${x[2]}-${x[1].padStart(2,'0')}-${x[0].padStart(2,'0')}`:String(d||'').slice(0,10);};
+  const list=(state.kardex||[]).filter(k=>(!q||nz([k.product,k.reference,k.type].join(' ')).includes(q))&&(!type||k.type===type)&&(!pid||k.product===pid)&&(!from||iso(k.date)>=from)&&(!to||iso(k.date)<=to));
+  const sm=$('kardexSummary');
+  if(sm){const ent=list.filter(k=>(Number(k.qty)||0)>0).reduce((a,k)=>a+(Number(k.qty)||0),0),sal=list.filter(k=>(Number(k.qty)||0)<0).reduce((a,k)=>a+Math.abs(Number(k.qty)||0),0);
+    sm.innerHTML=`<div class="client-stat"><span>MOVIMIENTOS</span><b>${list.length}</b></div><div class="client-stat"><span>ENTRADAS</span><b style="color:#15803d">${+ent.toFixed(2)}</b></div><div class="client-stat"><span>SALIDAS</span><b style="color:#dc2626">${+sal.toFixed(2)}</b></div>`;}
+  body.innerHTML=list.length?list.slice(0,500).map(k=>{const qn=Number(k.qty)||0;return `<tr><td>${esc(k.date||'')} ${esc(k.time||'')}</td><td>${esc(k.product||'')}</td><td>${esc(k.presentation||'Unidad')}${k.equivalence&&k.equivalence!==1?` <small style="color:var(--muted)">×${k.equivalence}</small>`:''}</td><td>${esc(k.type||'')}</td><td style="font-weight:800;color:${qn<0?'#dc2626':'#15803d'}">${qn>0?'+':''}${+qn.toFixed(3)}</td><td>${k.unitCost!=null?fm(k.unitCost):''}</td><td>${k.totalCost!=null?fm(k.totalCost):''}</td><td>${+(Number(k.stockAfter)||0).toFixed(3)}</td><td>${esc(k.reference||'')}</td></tr>`;}).join(''):'<tr><td colspan="9" style="text-align:center;padding:18px;color:var(--muted)">Sin movimientos.</td></tr>';
+};
+['inventario','kardex'].forEach(id=>{const sec=$(id);if(!sec)return;const fn=id==='inventario'?'renderInventory':'renderKardex';
+  new MutationObserver(()=>{if(sec.classList.contains('active'))window[fn]();}).observe(sec,{attributes:true,attributeFilter:['class']});});
+try{renderCash();}catch(e){}
 })();
 </script>
 </body></html>
