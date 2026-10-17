@@ -1,11 +1,21 @@
 {
-  "background_color": "#ffffff",
-  "dir": "ltr",
+  "name": "ASTORE ADMIN",
+  "short_name": "ADMIN ASTORE",
+  "start_url": "./",
   "display": "standalone",
-  "name": "Astore admin",
-  "orientation": "any",
-  "scope": "/",
-  "short_name": "Jefe",
-  "start_url": "/",
-  "theme_color": "#0f172a"
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "description": "Ecosistema ASTORE, registro de tiendas, DE TODO, etc",
+  "icons": [
+    {
+      "src": "images_(27).jpeg",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "images_(27).jpeg",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
 }
