@@ -1,4 +1,4 @@
-const CACHE = 'astore-eco-v90-0';
+const CACHE = 'astore-eco-v80-10';
 self.addEventListener('install', event => {
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['./','./index.html']).catch(()=>{})));
