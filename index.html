@@ -6520,7 +6520,7 @@ const SEPW=new Set(['y','mas','luego','despues','ademas','tambien','entonces','c
 
 /* ================= 2. TOKENIZADOR ================= */
 function tokenize(text){
-  const s=nz(text).replace(/(\d)\s*[.,]\s*(\d{1,3})(?!\d)/g,'$1.$2').replace(/[½]/g,' 0.5 ').replace(/[¼]/g,' 0.25 ');
+  const s=nz(text).replace(/(\d)[.,](\d{1,3})(?!\d)/g,'$1.$2').replace(/[½]/g,' 0.5 ').replace(/[¼]/g,' 0.25 ');
   const raw=s.match(/\d+(?:\.\d+)?|[a-zñ]+|[,;.\n]/g)||[];
   return raw;
 }
@@ -6596,6 +6596,9 @@ function segment(tk){
   const chunks=[];let cur=[];
   tk.forEach(x=>{if(x.t==='sep'){if(cur.length)chunks.push(cur);cur=[];}else cur.push(x);});
   if(cur.length)chunks.push(cur);
+  for(let i=0;i<chunks.length-1;i++){
+    if(!chunks[i].some(x=>x.t==='w')&&chunks[i+1][0].t==='w'){chunks[i+1]=[...chunks[i],...chunks[i+1]];chunks.splice(i,1);i--;}
+  }
   const segs=[];
   chunks.forEach(ch=>{
     if(ch[0].t==='unit')ch=[{t:'num',v:1},...ch];
@@ -6872,7 +6875,7 @@ function openVoice(){
   render();
   if(SR)startRec();else setStatus('Tu navegador no tiene dictado por voz','Escribe o pega la lista abajo (en el celular puedes usar el micrófono del teclado).');
 }
-function closeVoice(){stopRec();$('avVoiceModal')?.classList.remove('open');document.body.classList.remove('modal-open');}
+function closeVoice(){flushPending();stopRec();$('avVoiceModal')?.classList.remove('open');document.body.classList.remove('modal-open');}
 function startRec(){
   if(!SR){setStatus('Tu navegador no tiene dictado por voz','Usa Chrome o escribe la lista abajo.');return;}
   wantListen=true;paintMic();
@@ -6885,7 +6888,8 @@ function startRec(){
         const r=e.results[i],t=r[0].transcript;
         if(r.isFinal)onFinal(t);else interim+=t;
       }
-      const lv=$('avvLive');if(lv)lv.textContent=interim?'“'+interim.trim()+'”':'';
+      const lv=$('avvLive');if(lv)lv.textContent=(pending?pending+' ':'')+(interim?'“'+interim.trim()+'”':'');
+      if(pending&&interim)schedulePending();
     };
     rec.onerror=e=>{
       if(e.error==='not-allowed'||e.error==='service-not-allowed'){wantListen=false;setStatus('Sin permiso de micrófono','Permite el micrófono en el navegador o escribe la lista.');paintMic();}
@@ -6896,7 +6900,7 @@ function startRec(){
     rec.start();
   }catch(err){wantListen=false;paintMic();setStatus('No se pudo iniciar el micrófono',String(err.message||err));}
 }
-function stopRec(){wantListen=false;paintMic();try{rec&&rec.stop();}catch(e){}const lv=$('avvLive');if(lv)lv.textContent='';}
+function stopRec(){flushPending();wantListen=false;paintMic();try{rec&&rec.stop();}catch(e){}const lv=$('avvLive');if(lv)lv.textContent='';}
 function onFinal(text){
   text=String(text||'').trim();if(!text)return;
   const now=Date.now();
@@ -6904,6 +6908,21 @@ function onFinal(text){
   let t=text;
   if(lastFinal&&text.length>lastFinal.length&&nz(text).startsWith(nz(lastFinal))&&now-lastFinalAt<2500)t=text.slice(lastFinal.length).trim();
   lastFinal=text;lastFinalAt=now;
+  if(!t)return;
+  /* Chrome a veces parte "2" y "leches" en dos resultados: se juntan antes de interpretar */
+  pending=pending?pending+((dangling(pending)||/^(de|del)\b/.test(nz(t)))?' ':' , ')+t:t;
+  schedulePending();
+}
+let pending='',pendTimer=null;
+function dangling(txt){const w=nz(txt).trim().split(/\s+/);const l=w[w.length-1]||'';return /^\d+([.,]\d+)?$/.test(l)||isNumWord(l)||['de','del','y','con','medio','media','cuarto','sol','soles'].includes(l);}
+function waitingName(txt){const w=nz(txt).trim().split(/\s+/);const l=w[w.length-1]||'';return !!(UNITS[l]&&!SHORT.has(l)||SHORT.has(l)&&/\d/.test(w[w.length-2]||''));}
+function schedulePending(){
+  clearTimeout(pendTimer);
+  pendTimer=setTimeout(flushPending,(dangling(pending)||waitingName(pending))?2600:1300);
+}
+function flushPending(){
+  clearTimeout(pendTimer);
+  const t=pending.trim();pending='';
   if(t)ingest(t);
 }
 function ingest(text){
@@ -6977,6 +6996,7 @@ function onFind(el){
   }
 }
 function commit(){
+  flushPending();
   const pend=rows.filter(r=>r.checked&&!r.added&&prod(r.pid));
   if(!pend.length){
     if(rows.length&&rows.every(r=>r.added)){closeVoice();return;}
@@ -7356,6 +7376,37 @@ window.renderKardex=function(){
 };
 ['inventario','kardex'].forEach(id=>{const sec=$(id);if(!sec)return;const fn=id==='inventario'?'renderInventory':'renderKardex';
   new MutationObserver(()=>{if(sec.classList.contains('active'))window[fn]();}).observe(sec,{attributes:true,attributeFilter:['class']});});
+
+/* ---------------- OCR de compras: funciones que faltaban + fecha dd/mm/aaaa ---------------- */
+if(typeof window.ocrV3NormalizeName!=='function'){
+  window.ocrV3NormalizeName=function(v){return nz(v).replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();};
+}
+if(typeof window.ocrV3Fingerprint!=='function'){
+  window.ocrV3Fingerprint=function(items,total,supplier,ruc,date){
+    const names=(items||[]).map(x=>window.ocrV3NormalizeName(x.name||x.desc)+':'+(Number(x.qty)||0)).sort().join('|');
+    return [String(ruc||'').replace(/\D/g,''),String(date||''),(Number(total)||0).toFixed(2),names].join('#');
+  };
+}
+/* En Perú las fechas van día/mes/año: 06/07/2026 es 6 de julio (no 7 de junio) */
+(function(){
+  const orig=window.extractPurchaseMetadata;
+  if(typeof orig!=='function'||orig.__dmy)return;
+  const fixed=function(text){
+    const meta=orig.apply(this,arguments)||{};
+    try{
+      const t=String(text||'');
+      const res=[/(?:FECHA(?:\s+DE\s+(?:EMISI[ÓO]N|COMPRA))?|EMISI[ÓO]N|F\.?\s*EMISI[ÓO]N)\s*[:\-]?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i,/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/];
+      for(const re of res){
+        const m=t.match(re);if(!m)continue;
+        let d=+m[1],mo=+m[2],y=+m[3];if(y<100)y+=2000;
+        if(mo>12&&d<=12){const x=d;d=mo;mo=x;}
+        if(y>=2000&&mo>=1&&mo<=12&&d>=1&&d<=31){meta.date=`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;break;}
+      }
+    }catch(e){}
+    return meta;
+  };
+  fixed.__dmy=true;window.extractPurchaseMetadata=fixed;
+})();
 try{renderCash();}catch(e){}
 })();
 </script>
