@@ -8,12 +8,12 @@
   "description": "Ecosistema ASTORE, registro de tiendas, DE TODO, etc",
   "icons": [
     {
-      "src": "logo_astore.jpeg",
+      "src": "logo astore.jpeg",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "logo_astore.jpeg",
+      "src": "logo astore.jpeg",
       "sizes": "512x512",
       "type": "image/jpeg"
     }
