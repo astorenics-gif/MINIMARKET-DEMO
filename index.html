@@ -6139,6 +6139,22 @@ small,.muted,.hint,.help-text{line-height:1.4}
 .modal.open{z-index:99980!important}
 body.modal-open .v80-sync{display:none}
 .av-ok{width:100%;min-height:44px;font-weight:800;border-radius:12px}
+/* ---- resumen / compartir / vuelto ---- */
+.av-chips button.on{background:var(--primary,#0b6b4f);color:#fff;border-color:var(--primary,#0b6b4f)}
+.av-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.av-kpi{border:1px solid var(--border,#e2e8f0);border-radius:14px;padding:12px;background:#fff;color:#0f172a}
+.av-kpi span{display:block;font-size:12px;font-weight:700;color:#64748b}
+.av-kpi b{display:block;font-size:24px;line-height:1.15;margin-top:2px}
+.av-kpi small{display:block;font-size:11px;color:#64748b;margin-top:2px}
+.av-sec{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin:14px 0 6px}
+.av-bar{margin-bottom:8px}.av-bar-t{display:flex;justify-content:space-between;font-size:14px;color:#0f172a}
+.av-bar-b{height:8px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:3px}.av-bar-b i{display:block;height:100%;background:#0b6b4f;border-radius:99px}
+.av-box{border-radius:12px;padding:10px 12px;margin-top:8px;font-size:14px;background:#dcfce7;color:#166534}
+.av-top{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:14px;color:#0f172a}
+.av-changebanner{position:fixed;inset:0;z-index:100001;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(15,23,42,.9);color:#fff;text-align:center;padding:24px}
+.av-changebanner.on{display:flex}
+.av-cb-l{font-size:18px;font-weight:800;letter-spacing:.2em;opacity:.8}.av-cb-n{font-size:68px;font-weight:900;line-height:1.1;color:#4ade80;margin:8px 0}
+.av-cb-s{font-size:16px;opacity:.85}.av-cb-t{margin-top:28px;font-size:13px;opacity:.6}
 </style>
 <script id="av-patch-core">
 /* ===== PARCHE CORE: prompts, clientes, cobro seguro, canasta con decimales, vuelto ===== */
@@ -6405,7 +6421,7 @@ function enhanceCart(){
     minus.removeAttribute('onclick');plus.removeAttribute('onclick');
     minus.onclick=()=>stepQty(key,-1);plus.onclick=()=>stepQty(key,1);
     const w=lineIsWeight(c);
-    const inp=document.createElement('input');inp.type='text';inp.inputMode='decimal';inp.className='av-cartqty';inp.value=String(c.qty);inp.setAttribute('aria-label','Cantidad');
+    const inp=document.createElement('input');inp.type='text';inp.inputMode='decimal';inp.className='av-cartqty';inp.value=String(Math.round((Number(c.qty)||0)*1000)/1000);inp.setAttribute('aria-label','Cantidad');
     inp.onfocus=()=>inp.select();inp.onchange=()=>window.setCartQty(key,inp.value);
     inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}};
     span.replaceWith(inp);
@@ -6807,19 +6823,21 @@ function recalc(row){
 }
 
 /* ================= 7. AGREGAR A LA CANASTA ================= */
-function addToCart(p,qty,presIndex,wt){
+function addToCart(p,qty,presIndex,wt,moneyAmt){
   window.__astoreSaleJustCompleted=false;
   const list=presList(p),pres=list[presIndex]||list[0],factor=Number(pres.factor)||1;
   const inCart=state.cart.filter(c=>String(c.id)===String(p.id)).reduce((a,c)=>a+(Number(c.qty)||0)*(Number(c.factor)||1),0);
   const avail=(Number(p.stock)||0)-inCart;
   let q=qty,clamped=false;
+  const _pr=Number(pres.price)||Number(p.price)||0;
+  if(moneyAmt>0&&_pr>0)q=moneyAmt/_pr;
   if(q*factor>avail+1e-9){q=Math.floor((avail/factor)*1000)/1000;clamped=true;}
   const integerOnly=!wt&&!baseU(p)&&!/kg|kilo|litro|gramo/.test(nz(pres.name));
   if(integerOnly)q=Math.floor(q+1e-9);
   if(q<=0)return{ok:false,clamped:true,qty:0};
   const key=`${p.id}__${pres.name}`,line=state.cart.find(x=>x.key===key);
-  if(line){line.qty=r3(line.qty+q);if(wt)line.wt=wt;}
-  else state.cart.push({key,id:p.id,name:p.name,presName:pres.name,factor,price:Number(pres.price)||Number(p.price)||0,qty:q,...(wt?{wt}:{})});
+  if(line){line.qty=moneyAmt>0?line.qty+q:r3(line.qty+q);if(wt)line.wt=wt;if(moneyAmt>0)line.amountMode=true;}
+  else state.cart.push({key,id:p.id,name:p.name,presName:pres.name,factor,price:Number(pres.price)||Number(p.price)||0,qty:q,...(wt?{wt}:{}),...(moneyAmt>0?{amountMode:true}:{})});
   return{ok:true,clamped,qty:q};
 }
 function flushCart(){
@@ -6931,7 +6949,7 @@ function ingest(text){
   if(!fresh.length){toast('error','No entendí',`“${text}”`,'!');return;}
   fresh.forEach(r=>{
     if(autoAdd&&r.status==='ok'&&r.pid&&!r.note){
-      const p=prod(r.pid),res=p&&addToCart(p,r.qty,r.pres,r.wt);
+      const p=prod(r.pid),res=p&&addToCart(p,r.qty,r.pres,r.wt,r.money);
       if(res&&res.ok){r.added=true;r.checked=false;}
     }
     rows.push(r);
@@ -6983,7 +7001,7 @@ function onRowChange(e){
   }else if(el.classList.contains('av-chk')){r.checked=el.checked;render();}
   else if(el.classList.contains('av-qty')){
     const v=parseFloat(String(el.value).replace(',','.'));
-    if(isFinite(v)&&v>0){r.qty=r3(v);r.manual=true;}
+    if(isFinite(v)&&v>0){r.qty=r3(v);r.manual=true;r.money=0;}
     render();
   }
 }
@@ -7005,7 +7023,7 @@ function commit(){
   }
   let ok=0,clamp=[];
   pend.forEach(r=>{
-    const p=prod(r.pid),res=addToCart(p,r.qty,r.pres,r.wt);
+    const p=prod(r.pid),res=addToCart(p,r.qty,r.pres,r.wt,r.money);
     if(res.ok){ok++;r.added=true;r.checked=false;if(res.clamped)clamp.push(`${p.name} (${res.qty})`);}
     else clamp.push(`${p.name} (sin stock)`);
   });
@@ -7082,6 +7100,7 @@ function cashTotals(){
   t.expected=t.opening+t.ef;
   return t;
 }
+window.avCashTotals=cashTotals;
 def('renderCash',function(){
   const c=cashState(),t=cashTotals(),set=(id,v,html)=>{const e=$(id);if(e)html?e.innerHTML=v:e.textContent=v;};
   set('cashStatus',c.open?'🟢 Abierta':'🔴 Cerrada');
@@ -7408,6 +7427,890 @@ if(typeof window.ocrV3Fingerprint!=='function'){
   fixed.__dmy=true;window.extractPurchaseMetadata=fixed;
 })();
 try{renderCash();}catch(e){}
+})();
+</script>
+<script id="av-patch-prices">
+/* ===== FIJAR PRECIOS: acceso directo (después de una compra, desde Productos y desde Revisión) ===== */
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nz=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const fm=v=>{try{return money(v)}catch(e){return 'S/ '+(Number(v)||0).toFixed(2)}};
+const toast=(t,a,b,i)=>{try{showAppToast(t,a,b,i)}catch(e){console.log(a,b)}};
+const num=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isFinite(n)?n:NaN;};
+const costOf=p=>Number(p.lastPurchaseCost)>0?Number(p.lastPurchaseCost):Number(p.cost)||0;
+let list=[],round='0.10',mode='sin';  /* list: [{id,margin,price}] */
+
+function applyRound(v){
+  if(!(v>0))return 0;
+  const r=round==='none'?0:Number(round);
+  return r?Math.ceil(v/r-1e-9)*r:Math.round(v*100)/100;
+}
+function priceFromMargin(p,m){return applyRound(costOf(p)*(1+m/100));}
+function marginFromPrice(p,price){const c=costOf(p);return c>0?((price-c)/c)*100:NaN;}
+
+function ensure(){
+  if($('avPriceModal'))return;
+  const m=document.createElement('div');m.id='avPriceModal';m.className='av-modal';
+  m.innerHTML=`<div class="av-sheet" role="dialog" aria-modal="true" aria-label="Fijar precios">
+    <div class="av-head"><h3>💲 Fijar precios</h3><button type="button" class="av-x" id="avpcX" aria-label="Cerrar">×</button></div>
+    <div class="av-body">
+      <p class="av-hint" id="avpcHint"></p>
+      <div class="av-field"><label>Ganar sobre el costo (aplica a todos)</label><div class="av-chips" id="avpcChips"><button type="button" data-m="15">15%</button><button type="button" data-m="20">20%</button><button type="button" data-m="30">30%</button><button type="button" data-m="40">40%</button><button type="button" data-m="50">50%</button><button type="button" data-m="100">100%</button></div></div>
+      <div class="av-field"><label>Redondear precio hacia arriba</label><select id="avpcRound"><option value="0.10">A 10 céntimos (S/ 4.60)</option><option value="0.50">A 50 céntimos (S/ 4.50)</option><option value="1">A S/ 1 (S/ 5.00)</option><option value="none">Sin redondeo</option></select></div>
+      <div id="avpcRows" class="av-rows"></div>
+    </div>
+    <div class="av-foot"><div class="av-tot" id="avpcTot"></div><button type="button" class="secondary" id="avpcAllp" title="Mostrar todos los productos">Ver todos</button><button type="button" class="primary" id="avpcSave">Guardar precios</button></div></div>`;
+  document.body.appendChild(m);
+  const close=()=>m.classList.remove('open');m._close=close;
+  m.addEventListener('click',e=>{if(e.target===m)close();});
+  $('avpcX').onclick=close;
+  m.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+  $('avpcChips').addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    const mg=+b.dataset.m;
+    list.forEach(r=>{const p=prod(r.id);if(p&&costOf(p)>0){r.margin=mg;r.price=priceFromMargin(p,mg);}});
+    render();
+  });
+  $('avpcRound').onchange=e=>{round=e.target.value;list.forEach(r=>{const p=prod(r.id);if(p&&costOf(p)>0&&isFinite(r.margin))r.price=priceFromMargin(p,r.margin);});render();};
+  $('avpcRows').addEventListener('input',e=>{
+    const el=e.target,id=el.dataset.id,r=list.find(x=>String(x.id)===id);if(!r)return;const p=prod(r.id);
+    if(el.classList.contains('avpc-m')){const v=num(el.value);r.margin=v;r.price=isFinite(v)&&costOf(p)>0?priceFromMargin(p,v):r.price;
+      const pi=document.querySelector(`.avpc-p[data-id="${id}"]`);if(pi)pi.value=r.price>0?r.price.toFixed(2):'';}
+    else if(el.classList.contains('avpc-p')){const v=num(el.value);r.price=isFinite(v)?v:0;r.margin=r.price>0?marginFromPrice(p,r.price):NaN;
+      const mi=document.querySelector(`.avpc-m[data-id="${id}"]`);if(mi)mi.value=isFinite(r.margin)?r.margin.toFixed(0):'';}
+    rowInfo(r);totals();
+  });
+  $('avpcRows').addEventListener('click',e=>{const d=e.target.closest('.avpc-skip');if(d){list=list.filter(x=>String(x.id)!==d.dataset.id);render();}});
+  $('avpcAllp').onclick=()=>{
+    mode=mode==='sin'?'todos':'sin';
+    open(mode==='todos'?(state.products||[]).map(p=>p.id):null,{keep:true});
+  };
+  $('avpcSave').onclick=save_;
+}
+const prod=id=>(state.products||[]).find(p=>String(p.id)===String(id));
+function rowInfo(r){
+  const p=prod(r.id),el=document.querySelector(`.avpc-i[data-id="${r.id}"]`);if(!p||!el)return;
+  const c=costOf(p),g=r.price-c;
+  el.innerHTML=r.price>0?(r.price<c?`<span style="color:#dc2626;font-weight:700">⚠️ Menor al costo (pierdes ${fm(c-r.price)})</span>`:`Ganas <b>${fm(g)}</b> por unidad`):'<span style="color:#b45309">Sin precio</span>';
+}
+function totals(){
+  const n=list.filter(r=>r.price>0).length;
+  $('avpcTot').innerHTML=`${n} de ${list.length}<b>con precio</b>`;
+  $('avpcSave').textContent=n?`Guardar ${n} precio${n===1?'':'s'}`:'Guardar';
+}
+function render(){
+  const box=$('avpcRows');
+  box.innerHTML=list.length?list.map(r=>{
+    const p=prod(r.id);if(!p)return'';
+    const c=costOf(p);
+    return `<div class="av-row ${r.price>0&&r.price<c?'none':''}" data-id="${esc(r.id)}">
+      <div class="av-r1"><span class="av-said" style="font-style:normal;color:var(--text);font-weight:800;font-size:14px">${esc(p.name)}</span><button type="button" class="av-del avpc-skip" data-id="${esc(r.id)}" aria-label="Omitir">✕</button></div>
+      <div class="av-r3"><span class="av-unit">Costo ${c>0?fm(c):'<b style="color:#b45309">sin costo</b>'}</span><span class="av-unit" style="margin-left:auto;color:var(--muted)">Stock ${Number(p.stock)||0}</span></div>
+      <div class="av-r3"><label style="font-size:11px;font-weight:800;color:var(--muted)">GANANCIA %<input class="av-qty avpc-m" data-id="${esc(r.id)}" inputmode="decimal" style="display:block;margin-top:3px" value="${isFinite(r.margin)?r.margin.toFixed(0):''}" ${c>0?'':'disabled'}></label>
+        <label style="font-size:11px;font-weight:800;color:var(--muted)">PRECIO VENTA S/<input class="av-qty avpc-p" data-id="${esc(r.id)}" inputmode="decimal" style="display:block;margin-top:3px;width:110px" value="${r.price>0?r.price.toFixed(2):''}"></label></div>
+      <div class="av-unit avpc-i" data-id="${esc(r.id)}" style="font-weight:600"></div></div>`;
+  }).join(''):'<div class="av-empty">No hay productos pendientes de precio. 🎉<br><small>Toca “Ver todos” para cambiar precios de cualquier producto.</small></div>';
+  list.forEach(rowInfo);totals();
+}
+function open(ids,opts){
+  ensure();
+  if(!opts||!opts.keep)mode=ids?'ids':'sin';
+  const all=state.products||[];
+  let src;
+  if(ids)src=all.filter(p=>ids.some(i=>String(i)===String(p.id)));
+  else src=all.filter(p=>!(Number(p.price)>0));
+  list=src.map(p=>{const c=costOf(p),pr=Number(p.price)||0;return{id:p.id,price:pr,margin:pr>0?marginFromPrice(p,pr):NaN};});
+  /* ordenar: primero los que no tienen precio */
+  list.sort((a,b)=>(a.price>0)-(b.price>0)||String(prod(a.id).name).localeCompare(String(prod(b.id).name),'es'));
+  $('avpcRound').value=round;
+  $('avpcHint').innerHTML=mode==='todos'?'Cambia el precio de cualquier producto. Escribe el precio o el % de ganancia.':'Estos productos no tienen precio de venta. Toca un <b>%</b> para aplicarlo a todos, o ajusta cada uno.';
+  $('avpcAllp').textContent=mode==='todos'?'Solo sin precio':'Ver todos';
+  render();
+  $('avPriceModal').classList.add('open');
+  setTimeout(()=>document.querySelector('.avpc-p')?.focus(),80);
+}
+function save_(){
+  let n=0,low=0;
+  list.forEach(r=>{
+    const p=prod(r.id);if(!p||!(r.price>0))return;
+    const price=Math.round(r.price*100)/100;
+    if(price<costOf(p))low++;
+    p.price=price;p.salePriceUpdatedAt=new Date().toISOString();
+    if(Array.isArray(p.presentations))p.presentations.forEach(x=>{if(Number(x.factor)===1||String(x.name).toLowerCase()==='unidad')x.price=price;});
+    n++;
+  });
+  if(!n){toast('error','Sin precios','Escribe al menos un precio de venta.','!');return;}
+  try{if(typeof normalizeProductPresentations==='function')normalizeProductPresentations();}catch(e){}
+  try{save();}catch(e){}
+  try{renderAll();}catch(e){try{renderProducts();renderPOS();}catch(_){}}
+  $('avPriceModal')._close();
+  toast('success',`${n} precio${n===1?'':'s'} guardado${n===1?'':'s'}`,low?`⚠️ ${low} quedaron por debajo del costo`:'Ya puedes venderlos en el POS.','✓');
+}
+window.openPriceSetter=function(ids){open(Array.isArray(ids)&&ids.length?ids:null);};
+
+/* tras guardar una compra OCR, ofrecer fijar precios de lo recién ingresado */
+(function(){
+  const orig=window.addOCRProductsToInventory;
+  if(typeof orig!=='function'||orig.__prices)return;
+  const w=function(){
+    let src=[];try{src=minimarketOCRItems||[];}catch(e){}
+    const names=src.map(x=>nz(x.desc||x.name||x.description).trim());
+    const before=(state.ocrPurchases||[]).length;
+    const r=orig.apply(this,arguments);
+    setTimeout(()=>{
+      if((state.ocrPurchases||[]).length<=before)return;       /* no se guardó (duplicado) */
+      const ids=(state.products||[]).filter(p=>names.includes(nz(p.name).trim())).map(p=>p.id);
+      const pend=ids.filter(id=>!(Number(prod(id).price)>0));
+      if(pend.length){
+        toast('success','Compra guardada',`${pend.length} producto(s) sin precio. Fíjalos ahora.`,'💲');
+        open(ids.filter(id=>!(Number(prod(id).price)>0)),{});
+      }
+    },350);
+    return r;
+  };
+  w.__prices=true;window.addOCRProductsToInventory=w;
+})();
+
+/* botón en el panel de la compra y en el menú de Productos */
+function inject(){
+  const menu=document.querySelector('#productMenu .pf-menu-list');
+  if(menu&&!menu.querySelector('.av-price-menu')){
+    const b=document.createElement('button');b.type='button';b.className='av-price-menu';b.textContent='💲 Fijar precios';
+    b.onclick=()=>{try{closeProductMenu();}catch(e){}openPriceSetter();};
+    menu.insertBefore(b,menu.firstChild);
+  }
+  const bar=$('productCompletionBar');
+  if(bar&&!bar.querySelector('.av-price-bar')){
+    const b=document.createElement('button');b.type='button';b.className='secondary av-price-bar';b.textContent='💲 Precios';b.onclick=()=>openPriceSetter();
+    bar.appendChild(b);
+  }
+}
+inject();
+const _rp=window.renderProducts;
+if(typeof _rp==='function'&&!_rp.__prices){
+  const w=function(){const r=_rp.apply(this,arguments);try{inject();
+    const n=(state.products||[]).filter(p=>!(Number(p.price)>0)).length;
+    const b=document.querySelector('.av-price-bar');if(b)b.textContent=n?`💲 Precios (${n} sin precio)`:'💲 Precios';}catch(e){}return r;};
+  w.__prices=true;window.renderProducts=w;
+}
+})();
+</script>
+<script id="av-patch-share">
+/* ===== PDF propio + WhatsApp (gracias por tu compra / recordatorio de deuda) + resumen del día + vuelto grande ===== */
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nz=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const fm=v=>{try{return money(v)}catch(e){return 'S/ '+(Number(v)||0).toFixed(2)}};
+const toast=(t,a,b,i)=>{try{showAppToast(t,a,b,i)}catch(e){console.log(a,b)}};
+const num=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isFinite(n)?n:NaN;};
+const fq=q=>{q=Number(q)||0;return Number.isInteger(q)?String(q):String(+q.toFixed(3));};
+const biz=()=>state.business||{};
+const bizName=()=>String(biz().name||'Mi negocio');
+
+/* ---------------------------------------------------------------
+   1) Mini escritor de PDF (sin librerías, funciona sin internet)
+   --------------------------------------------------------------- */
+const WR=[278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const WB=[278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
+function tw(s,size,bold){
+  let w=0;s=String(s);
+  for(let i=0;i<s.length;i++){
+    const c=s.charCodeAt(i),t=bold?WB:WR;
+    w+=(c>=32&&c<=126)?t[c-32]:(c>=192&&c<=255?(bold?611:556):556);
+  }
+  return w*size/1000;
+}
+function wrap(s,maxW,size,bold){
+  const out=[];String(s).split('\n').forEach(par=>{
+    let line='';
+    par.split(/\s+/).filter(Boolean).forEach(word=>{
+      const t=line?line+' '+word:word;
+      if(tw(t,size,bold)<=maxW||!line){
+        if(!line&&tw(word,size,bold)>maxW){ /* palabra larguísima: cortar */
+          let cur='';for(const ch of word){if(tw(cur+ch,size,bold)>maxW){out.push(cur);cur=ch;}else cur+=ch;}line=cur;
+        }else line=t;
+      }else{out.push(line);line=word;}
+    });
+    out.push(line);
+  });
+  return out.length?out:[''];
+}
+function enc(s){
+  s=String(s??'').replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}️‍]/gu,'');
+  const map={'•':0x95,'—':0x97,'–':0x96,'“':0x93,'”':0x94,'‘':0x91,'’':0x92,'…':0x85,'€':0x80,'·':0xB7,'×':0xD7};
+  let o='';
+  for(const ch of s){
+    let c=ch.codePointAt(0);
+    if(map[ch]!==undefined)c=map[ch];else if(c>255)c=63;
+    if(c===40||c===41||c===92)o+='\\'+ch;
+    else if(c<32||c>126)o+='\\'+('00'+c.toString(8)).slice(-3);
+    else o+=ch;
+  }
+  return o;
+}
+const rgb=c=>{c=c||[0,0,0];return c.map(x=>(x/255).toFixed(3)).join(' ');};
+class Doc{
+  constructor(w,h,m){this.w=w;this.h=h;this.m=m||28;this.pages=[];this.imgs=[];this.newPage();}
+  newPage(){this.ops=[];this.pages.push(this.ops);this.y=this.m;}
+  Y(y){return (this.h-y).toFixed(2);}
+  text(x,y,s,o){
+    o=o||{};const size=o.size||10,bold=!!o.bold;let xx=x;
+    const w=tw(s,size,bold);
+    if(o.align==='r')xx=x-w;else if(o.align==='c')xx=x-w/2;
+    this.ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${rgb(o.color)} rg ${xx.toFixed(2)} ${this.Y(y)} Td (${enc(s)}) Tj ET`);
+  }
+  rect(x,y,w,h,fill,stroke,lw){
+    let op='';
+    if(fill)op+=`${rgb(fill)} rg `;if(stroke)op+=`${rgb(stroke)} RG ${lw||.7} w `;
+    op+=`${x.toFixed(2)} ${(this.h-y-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill&&stroke?'B':fill?'f':'S'}`;
+    this.ops.push(op);
+  }
+  line(x1,y1,x2,y2,c,lw){this.ops.push(`${rgb(c||[200,205,212])} RG ${lw||.6} w ${x1.toFixed(2)} ${this.Y(y1)} m ${x2.toFixed(2)} ${this.Y(y2)} l S`);}
+  addImage(img){this.imgs.push(img);return this.imgs.length-1;}
+  image(i,x,y,w,h){this.ops.push(`q ${w.toFixed(2)} 0 0 ${h.toFixed(2)} ${x.toFixed(2)} ${(this.h-y-h).toFixed(2)} cm /Im${i} Do Q`);}
+  build(){
+    const n=this.imgs.length,np=this.pages.length;
+    let out='%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';const offs=[0];
+    const add=(num,body)=>{offs[num]=out.length;out+=`${num} 0 obj\n${body}\nendobj\n`;};
+    add(1,'<</Type/Catalog/Pages 2 0 R>>');
+    const kids=[];for(let i=0;i<np;i++)kids.push(`${6+n+2*i} 0 R`);
+    add(2,`<</Type/Pages/Kids[${kids.join(' ')}]/Count ${np}>>`);
+    add(3,'<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>');
+    add(4,'<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>');
+    this.imgs.forEach((im,i)=>add(5+i,`<</Type/XObject/Subtype/Image/Width ${im.w}/Height ${im.h}/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length ${im.data.length}>>\nstream\n${im.data}\nendstream`));
+    const xo=n?`/XObject<<${this.imgs.map((_,i)=>`/Im${i} ${5+i} 0 R`).join(' ')}>>`:'';
+    this.pages.forEach((ops,i)=>{
+      const body=ops.join('\n');
+      add(5+n+2*i,`<</Length ${body.length}>>\nstream\n${body}\nendstream`);
+      add(6+n+2*i,`<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${this.w} ${this.h}]/Resources<</Font<</F1 3 0 R/F2 4 0 R>>${xo}>>/Contents ${5+n+2*i} 0 R>>`);
+    });
+    const total=5+n+2*np;const xr=out.length;
+    out+=`xref\n0 ${total}\n0000000000 65535 f \n`;
+    for(let i=1;i<total;i++)out+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+    out+=`trailer\n<</Size ${total}/Root 1 0 R>>\nstartxref\n${xr}\n%%EOF`;
+    const u=new Uint8Array(out.length);for(let i=0;i<out.length;i++)u[i]=out.charCodeAt(i)&255;
+    return u;
+  }
+}
+/* logo del negocio -> JPEG embebible */
+function loadLogo(){
+  return new Promise(res=>{
+    const src=biz().logo;if(!src||typeof src!=='string'||!/^data:image\//.test(src))return res(null);
+    const im=new Image();
+    im.onload=()=>{try{
+      const mx=160,k=Math.min(1,mx/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k));
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;const cx=cv.getContext('2d');
+      cx.fillStyle='#fff';cx.fillRect(0,0,w,h);cx.drawImage(im,0,0,w,h);
+      const b=atob(cv.toDataURL('image/jpeg',.85).split(',')[1]);res({w,h,data:b});
+    }catch(e){res(null);}};
+    im.onerror=()=>res(null);im.src=src;
+    setTimeout(()=>res(null),2500);
+  });
+}
+const INK=[17,24,39],MUT=[100,116,139],GRN=[11,107,79],RED=[185,28,28],LIGHT=[241,245,249],BORDER=[203,213,225];
+
+function header(d,logo,boxTitle,boxMain,boxSub){
+  const m=d.m,top=d.y;let tx=m;
+  if(logo){const hh=44,ww=Math.min(70,logo.w*hh/logo.h),i=d.addImage(logo);d.image(i,m,top,ww,hh);tx=m+ww+10;}
+  d.text(tx,top+12,bizName(),{size:15,bold:true,color:INK});
+  let y=top+25;
+  [biz().address,biz().phone?'Tel. '+biz().phone:'',biz().ruc?'RUC '+biz().ruc:''].filter(Boolean).forEach(t=>{wrap(t,200,8.5).forEach(l=>{d.text(tx,y,l,{size:8.5,color:MUT});y+=11;});});
+  const bw=150,bx=d.w-m-bw,bh=56;
+  d.rect(bx,top,bw,bh,null,GRN,1.2);
+  d.text(bx+bw/2,top+17,boxTitle,{size:9.5,bold:true,color:GRN,align:'c'});
+  d.text(bx+bw/2,top+34,boxMain,{size:12.5,bold:true,color:INK,align:'c'});
+  if(boxSub)d.text(bx+bw/2,top+48,boxSub,{size:8.5,color:MUT,align:'c'});
+  d.y=Math.max(y,top+bh)+14;
+  d.line(m,d.y-6,d.w-m,d.y-6,GRN,1.4);d.y+=6;
+}
+function kv(d,rows){
+  const m=d.m;
+  rows.forEach(([k,v])=>{if(v===''||v==null)return;
+    d.text(m,d.y,k,{size:8.5,bold:true,color:MUT});
+    const ls=wrap(v,d.w-2*m-80,9.5,false);
+    ls.forEach((l,i)=>d.text(m+80,d.y+i*12,l,{size:9.5,color:INK}));d.y+=Math.max(13,ls.length*12+1);
+  });
+  d.y+=4;
+}
+function footer(d,lines){
+  const m=d.m;let y=d.y+8;
+  if(y>d.h-70){d.newPage();y=d.y+4;}
+  d.line(m,y,d.w-m,y,BORDER);y+=16;
+  lines.forEach((t,i)=>{wrap(t,d.w-2*m,i?8.5:11,!i).forEach(l=>{d.text(d.w/2,y,l,{size:i?8.5:11,bold:!i,color:i?MUT:GRN,align:'c'});y+=i?11:15;});});
+  d.y=y;
+}
+function tableHead(d,cols){
+  const m=d.m;d.rect(m,d.y-10,d.w-2*m,16,LIGHT);
+  cols.forEach(c=>d.text(c.x,d.y+1,c.t,{size:8,bold:true,color:MUT,align:c.a||'l'}));d.y+=14;
+}
+
+/* ---- datos de deuda de un cliente ---- */
+function clientKey(f){return String(f.clientId||f.document||nz(f.name)||'sin-cliente');}
+function debtOf(buyer){
+  const b=buyer||{};const keys=[b.clientId,b.document,nz(b.name)].filter(Boolean).map(String);
+  const items=(state.fiados||[]).filter(f=>(Number(f.balance)||0)>0.009&&keys.includes(clientKey(f)));
+  return groupOf(items);
+}
+function groupOf(items){
+  if(!items.length)return null;
+  const f0=items[0];
+  return {key:clientKey(f0),name:f0.name||'Cliente',document:f0.document||'',phone:items.map(x=>x.phone).filter(Boolean)[0]||'',items,debt:items.reduce((a,f)=>a+(Number(f.balance)||0),0)};
+}
+function groupByKey(key){
+  const items=(state.fiados||[]).filter(f=>(Number(f.balance)||0)>0.009&&clientKey(f)===String(key));
+  return groupOf(items);
+}
+function daysSince(dateStr){
+  const m=String(dateStr||'').split('/');if(m.length!==3)return 0;
+  return Math.max(0,Math.floor((Date.now()-new Date(+m[2],+m[1]-1,+m[0]).getTime())/86400000));
+}
+
+/* ---- PDF: comprobante ---- */
+async function salePDF(sale,debt){
+  const logo=await loadLogo();
+  const d=new Doc(420,595,28),m=d.m;
+  const type=String(sale.type||'TICKET');
+  header(d,logo,type==='BOLETA'?'BOLETA DE VENTA':type==='FACTURA'?'FACTURA':'TICKET DE VENTA',sale.comprobante||'',`${sale.date||''} ${sale.time||''}`);
+  kv(d,[['Cliente',sale.buyer?.name||'Consumidor final'],['DNI / RUC',sale.buyer?.document||''],['Pago',sale.payment==='Mixto'&&sale.paymentBreakdown?`Mixto (Efectivo ${fm(sale.paymentBreakdown.cash)} + Yape/Plin ${fm(sale.paymentBreakdown.digital)})`:sale.payment||'Efectivo']]);
+  const cols=[{x:m+4,t:'CANT.'},{x:m+52,t:'DESCRIPCIÓN'},{x:d.w-m-70,t:'P. UNIT.',a:'r'},{x:d.w-m-4,t:'IMPORTE',a:'r'}];
+  tableHead(d,cols);
+  (sale.items||[]).forEach(i=>{
+    const pres=i.presName||i.presentation||'';
+    const desc=wrap(i.name||'Producto',d.w-2*m-52-130,9.5,true);
+    const rowH=desc.length*11+(pres&&pres!=='Unidad'?10:0)+6;
+    if(d.y+rowH>d.h-110){d.newPage();tableHead(d,cols);}
+    d.text(m+4,d.y,fq(i.qty)+(i.wt?' kg':''),{size:9.5,color:INK});
+    desc.forEach((l,k)=>d.text(m+52,d.y+k*11,l,{size:9.5,bold:true,color:INK}));
+    if(pres&&pres!=='Unidad')d.text(m+52,d.y+desc.length*11-1,pres,{size:8,color:MUT});
+    d.text(d.w-m-70,d.y,fm(i.price),{size:9.5,color:INK,align:'r'});
+    d.text(d.w-m-4,d.y,fm((Number(i.price)||0)*(Number(i.qty)||0)),{size:9.5,bold:true,color:INK,align:'r'});
+    d.y+=rowH;d.line(m,d.y-8,d.w-m,d.y-8,[226,232,240],.5);
+  });
+  d.y+=4;
+  if(d.y>d.h-140)d.newPage();
+  const rx=d.w-m-4,lx=d.w-m-130;
+  const row=(k,v,o)=>{d.text(lx,d.y,k,{size:o?.big?11:9.5,bold:!!o?.big,color:o?.big?INK:MUT});d.text(rx,d.y,v,{size:o?.big?14:9.5,bold:!!o?.big,color:o?.color||INK,align:'r'});d.y+=o?.big?20:13;};
+  if(Number(sale.igv)>0){row('Base imponible',fm(sale.taxBase));row('IGV',fm(sale.igv));}
+  if(Number(sale.discount)>0)row('Descuento','− '+fm(sale.discount));
+  d.line(lx,d.y-9,rx,d.y-9,BORDER);d.y+=2;
+  row('TOTAL',fm(sale.total),{big:true,color:GRN});
+  if(String(sale.payment).toLowerCase()==='fiado'){d.rect(m,d.y-2,d.w-2*m,22,[254,243,199]);d.text(m+8,d.y+13,'Compra al crédito (fiado): queda pendiente de pago '+fm(sale.total),{size:9,bold:true,color:[146,64,14]});d.y+=30;}
+  if(debt&&debt.debt>0.009){d.rect(m,d.y-2,d.w-2*m,22,[254,226,226]);d.text(m+8,d.y+13,`Tu saldo pendiente total: ${fm(debt.debt)}`,{size:9.5,bold:true,color:RED});d.y+=30;}
+  footer(d,['¡Gracias por tu compra!',`${bizName()}${biz().phone?' · Tel. '+biz().phone:''}`,'Conserva este comprobante.']);
+  return d.build();
+}
+/* ---- PDF: estado de cuenta ---- */
+async function debtPDF(g){
+  const logo=await loadLogo();
+  const d=new Doc(420,595,28),m=d.m;
+  const hoy=new Date().toLocaleDateString('es-PE');
+  header(d,logo,'ESTADO DE CUENTA','Deuda pendiente','Emitido el '+hoy);
+  kv(d,[['Cliente',g.name],['DNI / RUC',g.document],['Teléfono',g.phone]]);
+  d.rect(m,d.y-4,d.w-2*m,38,[254,226,226]);
+  d.text(m+10,d.y+11,'DEUDA TOTAL',{size:8.5,bold:true,color:RED});
+  d.text(m+10,d.y+27,`${g.items.length} compra${g.items.length===1?'':'s'} pendiente${g.items.length===1?'':'s'}`,{size:8.5,color:MUT});
+  d.text(d.w-m-10,d.y+25,fm(g.debt),{size:20,bold:true,color:RED,align:'r'});
+  d.y+=52;
+  const cols=[{x:m+4,t:'FECHA'},{x:m+78,t:'COMPROBANTE'},{x:m+190,t:'DÍAS'},{x:d.w-m-80,t:'MONTO',a:'r'},{x:d.w-m-4,t:'SALDO',a:'r'}];
+  tableHead(d,cols);
+  g.items.slice().sort((a,b)=>daysSince(b.date)-daysSince(a.date)).forEach(f=>{
+    if(d.y>d.h-120){d.newPage();tableHead(d,cols);}
+    const dd=daysSince(f.date);
+    d.text(m+4,d.y,f.date||'',{size:9.5,color:INK});
+    d.text(m+78,d.y,f.saleId||'',{size:9.5,color:INK});
+    d.text(m+190,d.y,dd+' d',{size:9.5,bold:dd>30,color:dd>30?RED:INK});
+    d.text(d.w-m-80,d.y,fm(f.amount),{size:9.5,color:MUT,align:'r'});
+    d.text(d.w-m-4,d.y,fm(f.balance),{size:9.5,bold:true,color:INK,align:'r'});
+    d.y+=15;d.line(m,d.y-10,d.w-m,d.y-10,[226,232,240],.5);
+  });
+  const k=new Set(g.items.map(clientKey));
+  const pays=(state.fiadoPayments||[]).filter(p=>k.has(String(p.clientId||nz(p.name)))||nz(p.name)===nz(g.name)).slice(-4).reverse();
+  if(pays.length){
+    d.y+=8;if(d.y>d.h-140)d.newPage();
+    d.text(m,d.y,'Últimos abonos',{size:9,bold:true,color:MUT});d.y+=13;
+    pays.forEach(p=>{d.text(m+4,d.y,`${p.date||''} · ${p.method||p.payment||''}`,{size:9,color:INK});d.text(d.w-m-4,d.y,'− '+fm(p.amount),{size:9,color:GRN,align:'r'});d.y+=12;});
+  }
+  d.y+=6;
+  footer(d,['Gracias por tu confianza',`Puedes cancelar en efectivo, Yape o Plin.${biz().phone?' Consultas: '+biz().phone:''}`,bizName()]);
+  return d.build();
+}
+
+/* ---------------------------------------------------------------
+   2) Ventana "Enviar por WhatsApp"
+   --------------------------------------------------------------- */
+let S=null; /* {kind:'sale'|'debt', sale, group, tab, file, token} */
+function normPhone(v){
+  let p=String(v||'').replace(/\D/g,'');
+  if(p.length===9)p='51'+p;else if(p.length===10&&p[0]==='0')p='51'+p.slice(1);
+  return p;
+}
+function msgFor(tab){
+  const n=(S.sale?.buyer?.name||S.group?.name||'').trim();
+  const hi=n&&!/consumidor final/i.test(n)?`Hola ${n.split(' ')[0]}`:'Hola';
+  const g=S.group||(S.sale&&debtOf(S.sale.buyer));
+  if(tab==='debt'&&g){
+    const old=Math.max(...g.items.map(f=>daysSince(f.date)));
+    return `${hi} 👋, te saludamos de *${bizName()}*.\n\nTe recordamos amablemente que tienes un saldo pendiente de *${fm(g.debt)}* (${g.items.length} compra${g.items.length===1?'':'s'}${old>0?`, la más antigua de hace ${old} día${old===1?'':'s'}`:''}).\n\nTe adjunto tu estado de cuenta en PDF. Puedes pagar en efectivo, Yape o Plin. 🙏\n\n¡Gracias por tu confianza!`;
+  }
+  if(tab==='thanks'&&S.sale){
+    const s=S.sale,fiado=String(s.payment).toLowerCase()==='fiado';
+    return `${hi} 👋, ¡gracias por tu compra en *${bizName()}*! 🛒\n\n🧾 ${s.comprobante}\n💰 Total: *${fm(s.total)}*${fiado?' (queda pendiente de pago)':` · ${s.payment||'Efectivo'}`}\n\nTe adjunto tu comprobante en PDF. ¡Te esperamos pronto! 🙌`;
+  }
+  if(tab==='plain'&&S.sale){
+    const s=S.sale;return `${hi}, te enviamos tu comprobante ${s.comprobante} por ${fm(s.total)}. Gracias por preferirnos. — ${bizName()}`;
+  }
+  return '';
+}
+function ensureModal(){
+  if($('avShareModal'))return;
+  const m=document.createElement('div');m.id='avShareModal';m.className='av-modal';
+  m.innerHTML=`<div class="av-sheet" role="dialog" aria-modal="true" aria-label="Enviar por WhatsApp">
+    <div class="av-head"><h3>📱 Enviar por WhatsApp</h3><button type="button" class="av-x" id="avshX" aria-label="Cerrar">×</button></div>
+    <div class="av-body">
+      <div class="av-chips" id="avshTabs" style="margin-bottom:10px"></div>
+      <div class="av-field"><label>WhatsApp del cliente</label><input id="avshPhone" inputmode="tel" placeholder="9XXXXXXXX" autocomplete="off"></div>
+      <div class="av-field"><label>Mensaje (puedes editarlo)</label><textarea id="avshMsg" rows="7" style="width:100%;border:1px solid var(--border);border-radius:12px;padding:10px;font:inherit;font-size:14px;resize:vertical"></textarea></div>
+      <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0"><input type="checkbox" id="avshPdf" checked style="width:18px;height:18px"> Adjuntar PDF <span id="avshFile" style="color:var(--muted);font-size:12px"></span></label>
+      <p class="av-hint" id="avshHint"></p>
+    </div>
+    <div class="av-foot"><button type="button" class="secondary" id="avshView">👁️ Ver PDF</button><button type="button" class="primary" id="avshSend">📤 Enviar</button></div></div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+  $('avshX').onclick=()=>m.classList.remove('open');
+  m.addEventListener('keydown',e=>{if(e.key==='Escape')m.classList.remove('open');});
+  $('avshTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t);});
+  $('avshPdf').onchange=()=>{hint();};
+  $('avshView').onclick=async()=>{await prep();if(S.file){const u=URL.createObjectURL(S.file);window.open(u,'_blank');setTimeout(()=>URL.revokeObjectURL(u),60000);}};
+  $('avshSend').onclick=send;
+}
+function tabsFor(){
+  const t=[];
+  if(S.kind==='sale'){t.push(['thanks','🙏 Gracias por tu compra']);if(S.group)t.push(['debt','🔔 Recordar deuda']);t.push(['plain','🧾 Solo comprobante']);}
+  else t.push(['debt','🔔 Recordar deuda']);
+  return t;
+}
+function setTab(t){
+  S.tab=t;S.file=null;
+  $('avshTabs').innerHTML=tabsFor().map(([k,l])=>`<button type="button" data-t="${k}" class="${k===t?'on':''}">${l}</button>`).join('');
+  $('avshMsg').value=msgFor(t);
+  hint();prep();
+}
+function hint(){
+  const withPdf=$('avshPdf').checked,can=canShareFiles();
+  $('avshHint').innerHTML=!withPdf?'Se abrirá WhatsApp con el mensaje listo para este número.':can?'Se abrirá el menú de tu teléfono: elige <b>WhatsApp</b> y luego el chat del cliente. El PDF va adjunto.':'Se descargará el PDF y se abrirá WhatsApp con el mensaje. En el chat toca 📎 y adjunta el PDF descargado.';
+}
+function fileName(){
+  const safe=x=>nz(x||'').replace(/[^A-Za-z0-9\-_]+/g,'-').replace(/^-+|-+$/g,'');
+  return S.tab==='debt'?`Estado-de-cuenta-${safe(S.group?.name||S.sale?.buyer?.name)||'cliente'}.pdf`:`Comprobante-${safe(S.sale?.comprobante)||'venta'}.pdf`;
+}
+async function prep(){
+  const tok=S.token=(S.token||0)+1,tab=S.tab;
+  try{
+    const bytes=tab==='debt'?await debtPDF(S.group||debtOf(S.sale.buyer)):await salePDF(S.sale,S.group);
+    if(S.token!==tok)return;
+    S.file=new File([bytes],fileName(),{type:'application/pdf'});
+    $('avshFile').textContent=`(${fileName()} · ${Math.max(1,Math.round(bytes.length/1024))} KB)`;
+  }catch(e){console.error(e);S.file=null;$('avshFile').textContent='(no se pudo crear el PDF)';}
+}
+function canShareFiles(){try{return !!(navigator.canShare&&navigator.share&&navigator.canShare({files:[new File([new Uint8Array([37])],'a.pdf',{type:'application/pdf'})]}));}catch(e){return false;}}
+function download(file){const u=URL.createObjectURL(file),a=document.createElement('a');a.href=u;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),30000);}
+async function send(){
+  const phone=normPhone($('avshPhone').value),text=$('avshMsg').value,withPdf=$('avshPdf').checked;
+  if(!phone||phone.length<10){toast('error','Falta el WhatsApp','Escribe el número del cliente (9 dígitos).','!');$('avshPhone').focus();return;}
+  /* recordar el teléfono en el cliente */
+  try{
+    const key=S.group?.key;const f=(state.fiados||[]).filter(x=>S.group?S.group.items.includes(x):false);
+    f.forEach(x=>{if(!x.phone)x.phone=phone;});
+    const cl=(state.clients||[]).find(c=>String(c.id)===String(S.sale?.buyer?.clientId||f[0]?.clientId||''));
+    if(cl&&!cl.phone)cl.phone=phone;
+    if(S.sale&&S.sale.buyer&&!S.sale.buyer.phone)S.sale.buyer.phone=phone;
+    save();
+  }catch(e){}
+  const wa=`https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  if(withPdf){
+    if(!S.file)await prep();
+    if(S.file&&canShareFiles()&&navigator.canShare({files:[S.file]})){
+      try{await navigator.share({files:[S.file],text,title:S.file.name});$('avShareModal').classList.remove('open');toast('success','Listo','Elige el chat del cliente en WhatsApp.','📱');return;}
+      catch(e){if(e&&e.name==='AbortError')return;}
+    }
+    if(S.file){download(S.file);toast('info','PDF descargado','En WhatsApp toca 📎 y adjunta el PDF.','📎');}
+  }
+  window.open(wa,'_blank');
+  $('avShareModal').classList.remove('open');
+}
+function openShare(o){
+  ensureModal();S=Object.assign({token:0},o);
+  const ph=(S.sale?.buyer?.phone||S.group?.phone||'');
+  $('avshPhone').value=ph;$('avshPdf').checked=true;
+  setTab(S.kind==='sale'?(S.sale&&String(S.sale.payment).toLowerCase()!=='fiado'&&S.group&&false?'debt':'thanks'):'debt');
+  $('avShareModal').classList.add('open');
+  setTimeout(()=>{(ph?$('avshSend'):$('avshPhone')).focus();},80);
+}
+function openSale(sale){
+  if(!sale)return;
+  const g=debtOf(sale.buyer);
+  openShare({kind:'sale',sale,group:g});
+}
+window.openWhatsAppShare=openShare;
+window.avShareDebt=function(key){const g=groupByKey(key);if(!g){toast('error','Sin deuda','Este cliente ya no tiene saldo pendiente.','!');return;}openShare({kind:'debt',group:g});};
+window.sendCurrentTicketWhatsApp=function(){try{openSale(currentTicketSale);}catch(e){console.error(e);}};
+window.sendTicketWhatsApp=function(s){openSale(s);};
+window.sendWhatsApp=function(idx){openSale((state.sales||[])[idx]);};
+window.avPdf={salePDF,debtPDF,Doc,tw};
+
+/* botón "Recordar deuda" en la tarjeta de Fiados (reemplaza el enlace de solo texto) */
+function patchFiadoButtons(){
+  document.querySelectorAll('#fiadoList .card').forEach(card=>{
+    if(card.querySelector('.av-debt-btn'))return;
+    const a=[...card.querySelectorAll('a')].find(x=>/wa\.me/.test(x.getAttribute('href')||''));
+    const pay=card.querySelector('button[onclick^="payFiadoClient"]');if(!pay)return;
+    const key=(pay.getAttribute('onclick').match(/payFiadoClient\('(.*)'\)/)||[])[1];if(!key)return;
+    const b=document.createElement('button');b.type='button';b.className='secondary av-debt-btn';b.textContent='🔔 Recordar deuda (PDF)';
+    b.onclick=()=>window.avShareDebt(key.replace(/\\'/g,"'"));
+    if(a)a.replaceWith(b);else pay.after(b);
+  });
+}
+const _rf=window.renderFiados;
+if(typeof _rf==='function'&&!_rf.__share){const w=function(){const r=_rf.apply(this,arguments);try{patchFiadoButtons();}catch(e){}return r;};w.__share=true;window.renderFiados=w;}
+try{patchFiadoButtons();}catch(e){}
+
+/* ---------------------------------------------------------------
+   3) Vuelto grande después de cobrar en efectivo
+   --------------------------------------------------------------- */
+(function(){
+  const orig=window.processCheckoutFinal;if(typeof orig!=='function'||orig.__chg)return;
+  const w=function(){
+    let recv=NaN,tot=0,pay='';
+    try{recv=num($('avCashIn')?.value);tot=state.cart.reduce((a,c)=>a+c.price*c.qty,0)-(Number(state.discount)||0);pay=selectedPayment;}catch(e){}
+    const n0=(state.sales||[]).length;
+    const r=orig.apply(this,arguments);
+    try{
+      if((state.sales||[]).length>n0&&pay==='Efectivo'&&isFinite(recv)&&recv-tot>0.004){
+        showChange(recv-tot,recv,tot);if($('avCashIn'))$('avCashIn').value='';
+      }
+    }catch(e){}
+    return r;
+  };
+  w.__chg=true;window.processCheckoutFinal=w;
+})();
+function showChange(chg,recv,tot){
+  let b=$('avChangeBanner');
+  if(!b){b=document.createElement('div');b.id='avChangeBanner';b.className='av-changebanner';document.body.appendChild(b);b.onclick=()=>b.classList.remove('on');}
+  b.innerHTML=`<div class="av-cb-l">VUELTO</div><div class="av-cb-n">${fm(chg)}</div><div class="av-cb-s">Recibido ${fm(recv)} · Total ${fm(tot)}</div><div class="av-cb-t">Toca para cerrar</div>`;
+  b.classList.add('on');clearTimeout(b._t);b._t=setTimeout(()=>b.classList.remove('on'),9000);
+}
+window.avShowChange=showChange;
+
+/* ---------------------------------------------------------------
+   4) Resumen del día
+   --------------------------------------------------------------- */
+let sumRange='hoy';
+function dstr(dt){return dt.toLocaleDateString('es-PE');}
+function rangeDates(r){
+  const out=new Set(),now=new Date();
+  const n=r==='hoy'?1:r==='ayer'?1:r==='7'?7:30;
+  for(let i=0;i<n;i++){const d=new Date(now);d.setDate(d.getDate()-i-(r==='ayer'?1:0));out.add(dstr(d));}
+  return out;
+}
+function isoToEs(s){const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${+m[3]}/${+m[2]}/${m[1]}`:String(s||'');}
+function normEs(s){const m=String(s||'').split('/');return m.length===3?`${+m[0]}/${+m[1]}/${m[2]}`:String(s||'');}
+function summaryData(r){
+  const ds=new Set([...rangeDates(r)].map(normEs));
+  const sales=(state.sales||[]).filter(s=>s.status!=='ANULADA'&&ds.has(normEs(s.date)));
+  const pay={Efectivo:0,'Yape/Plin':0,Tarjeta:0,Fiado:0};
+  let total=0,cost=0,units=0;const prod={};
+  sales.forEach(s=>{
+    const t=Number(s.total)||0;total+=t;
+    if(s.paymentBreakdown&&s.payment==='Mixto'){pay.Efectivo+=Number(s.paymentBreakdown.cash)||0;pay['Yape/Plin']+=Number(s.paymentBreakdown.digital)||0;}
+    else{const k=pay[s.payment]!==undefined?s.payment:'Efectivo';pay[k]+=t;}
+    (s.items||[]).forEach(i=>{
+      const q=Number(i.qty)||0,f=Number(i.factor||i.equivalence)||1;
+      cost+=Number(i.costTotal)||((Number(i.costUnit)||0)*q*f);units+=q;
+      const k=i.name||'Producto';(prod[k]=prod[k]||{name:k,qty:0,amt:0});prod[k].qty+=q;prod[k].amt+=(Number(i.price)||0)*q;
+    });
+  });
+  const exp=(state.expenses||[]).filter(x=>ds.has(normEs(isoToEs(x.date)))).reduce((a,x)=>a+(Number(x.amount)||0),0);
+  const cobros=(state.fiadoPayments||[]).filter(p=>ds.has(normEs(p.date))).reduce((a,p)=>a+(Number(p.amount)||0),0);
+  const deuda=(state.fiados||[]).reduce((a,f)=>a+(Number(f.balance)||0),0);
+  const low=(state.products||[]).filter(p=>(Number(p.stock)||0)<=(Number(p.min)||0)&&Number(p.min)>0).length;
+  return {sales,count:sales.length,total,cost,profit:total-cost,units,pay,exp,cobros,deuda,low,top:Object.values(prod).sort((a,b)=>b.amt-a.amt).slice(0,5),avg:sales.length?total/sales.length:0};
+}
+const RL={hoy:'Hoy',ayer:'Ayer','7':'Últimos 7 días','30':'Últimos 30 días'};
+function ensureSummary(){
+  if($('avSummaryModal'))return;
+  const m=document.createElement('div');m.id='avSummaryModal';m.className='av-modal';
+  m.innerHTML=`<div class="av-sheet" role="dialog" aria-modal="true" aria-label="Resumen del día"><div class="av-head"><h3>📊 Resumen</h3><button type="button" class="av-x" id="avsX" aria-label="Cerrar">×</button></div><div class="av-body"><div class="av-chips" id="avsTabs" style="margin-bottom:10px"></div><div id="avsBody"></div></div><div class="av-foot"><button type="button" class="secondary" id="avsShare">📤 Compartir</button><button type="button" class="primary" id="avsClose">Listo</button></div></div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+  $('avsX').onclick=$('avsClose').onclick=()=>m.classList.remove('open');
+  $('avsTabs').innerHTML=['hoy','ayer','7','30'].map(k=>`<button type="button" data-r="${k}">${RL[k]}</button>`).join('');
+  $('avsTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b){sumRange=b.dataset.r;renderSummary();}});
+  $('avsShare').onclick=()=>{
+    const d=summaryData(sumRange),t=summaryText(d);
+    if(navigator.share)navigator.share({text:t}).catch(()=>{});else window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank');
+  };
+}
+function summaryText(d){
+  return `📊 *${bizName()}* · ${RL[sumRange]}\n\n🛒 Ventas: ${d.count} · ${fm(d.total)}\n💵 Efectivo: ${fm(d.pay.Efectivo)}\n📱 Yape/Plin: ${fm(d.pay['Yape/Plin'])}\n💳 Tarjeta: ${fm(d.pay.Tarjeta)}\n📒 Fiado: ${fm(d.pay.Fiado)}\n\n📈 Ganancia: ${fm(d.profit)}\n➖ Gastos: ${fm(d.exp)}\n🔔 Deuda de clientes: ${fm(d.deuda)}`;
+}
+function renderSummary(){
+  const d=summaryData(sumRange);
+  [...$('avsTabs').children].forEach(b=>b.classList.toggle('on',b.dataset.r===sumRange));
+  const kpi=(l,v,c,s)=>`<div class="av-kpi"><span>${l}</span><b style="${c?'color:'+c:''}">${v}</b>${s?`<small>${s}</small>`:''}</div>`;
+  const t=window.avCashTotals&&state.cash?.open&&sumRange==='hoy'?window.avCashTotals():null;
+  const payRows=[['💵 Efectivo',d.pay.Efectivo],['📱 Yape/Plin',d.pay['Yape/Plin']],['💳 Tarjeta',d.pay.Tarjeta],['📒 Fiado (por cobrar)',d.pay.Fiado]];
+  const mx=Math.max(1,...payRows.map(r=>r[1]));
+  $('avsBody').innerHTML=`
+   <div class="av-kpis">${kpi('Vendido',fm(d.total),'#0b6b4f',`${d.count} venta${d.count===1?'':'s'} · prom. ${fm(d.avg)}`)}${kpi('Ganancia',fm(d.profit),d.profit<0?'#dc2626':'#15803d',d.total>0?Math.round(d.profit/d.total*100)+'% de margen':'')}</div>
+   <div class="av-sec">Cómo te pagaron</div>
+   ${payRows.map(([l,v])=>`<div class="av-bar"><div class="av-bar-t"><span>${l}</span><b>${fm(v)}</b></div><div class="av-bar-b"><i style="width:${Math.round(v/mx*100)}%"></i></div></div>`).join('')}
+   <div class="av-sec">Dinero</div>
+   <div class="av-kpis">${kpi('Gastos',fm(d.exp),d.exp?'#b45309':'')}${kpi('Cobros de fiado',fm(d.cobros),'#15803d')}</div>
+   ${t?`<div class="av-box">🔓 Caja abierta · efectivo esperado: <b>${fm(t.expected)}</b></div>`:(sumRange==='hoy'?'<div class="av-box" style="background:#f1f5f9;color:#475569">🔒 La caja está cerrada. Ábrela en <b>Caja</b> para cuadrar el efectivo.</div>':'')}
+   <div class="av-box" style="${d.deuda>0?'background:#fee2e2;color:#991b1b':'background:#dcfce7;color:#166534'}">${d.deuda>0?`🔔 Los clientes te deben <b>${fm(d.deuda)}</b>`:'✅ Nadie te debe'}</div>
+   ${d.low?`<div class="av-box" style="background:#fef3c7;color:#92400e">⚠️ ${d.low} producto${d.low===1?'':'s'} con stock bajo</div>`:''}
+   <div class="av-sec">Lo más vendido</div>
+   ${d.top.length?d.top.map((p,i)=>`<div class="av-top"><span>${i+1}. ${esc(p.name)}</span><span>${fq(p.qty)} · <b>${fm(p.amt)}</b></span></div>`).join(''):'<div class="av-empty">Aún no hay ventas en este período.</div>'}`;
+}
+window.openDaySummary=function(r){ensureSummary();if(r)sumRange=r;renderSummary();$('avSummaryModal').classList.add('open');};
+window.avSummaryData=summaryData;
+function injectSummaryBtn(){
+  const ca=document.querySelector('#caja .cash-actions');
+  if(ca&&!ca.querySelector('.av-sum-btn')){const b=document.createElement('button');b.type='button';b.className='secondary av-sum-btn';b.textContent='📊 Resumen del día';b.onclick=()=>openDaySummary('hoy');ca.appendChild(b);}
+  const pos=document.querySelector('#pos .toolbar, #pos .pos-top');
+  const menu=document.querySelector('#productMenu .pf-menu-list');
+  if(menu&&!menu.querySelector('.av-sum-menu')){/* no-op: solo en caja */}
+}
+injectSummaryBtn();
+const _rc=window.renderCash;
+if(typeof _rc==='function'&&!_rc.__sum){const w=function(){const r=_rc.apply(this,arguments);try{injectSummaryBtn();}catch(e){}return r;};w.__sum=true;window.renderCash=w;}
+})();
+</script>
+<script id="av-patch-restock">
+/* ===== QUÉ COMPRAR HOY: reposición por proveedor ===== */
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nz=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const fm=v=>{try{return money(v)}catch(e){return 'S/ '+(Number(v)||0).toFixed(2)}};
+const fq=q=>{q=Number(q)||0;return Number.isInteger(q)?String(q):String(+q.toFixed(2));};
+const toast=(t,a,b,i)=>{try{showAppToast(t,a,b,i)}catch(e){}};
+let rows=[];  /* {id,name,sup,stock,min,qty,cost,on,unit} */
+
+function soldPerDay(days){
+  const lim=Date.now()-days*86400000,out={};
+  (state.sales||[]).forEach(s=>{
+    if(s.status==='ANULADA')return;
+    const m=String(s.date||'').split('/');if(m.length!==3)return;
+    if(new Date(+m[2],+m[1]-1,+m[0]).getTime()<lim)return;
+    (s.items||[]).forEach(i=>{out[i.id]=(out[i.id]||0)+(Number(i.qty)||0)*(Number(i.factor||i.equivalence)||1);});
+  });
+  Object.keys(out).forEach(k=>out[k]=out[k]/days);
+  return out;
+}
+function build(){
+  const sd=soldPerDay(14);
+  rows=(state.products||[]).filter(p=>{const mn=Number(p.min)||0,st=Number(p.stock)||0;return st<=mn&&(mn>0||st<=0&&sd[p.id]>0);}).map(p=>{
+    const st=Number(p.stock)||0,mn=Number(p.min)||0,perDay=sd[p.id]||0;
+    const target=Math.max(mn*2,Math.ceil(perDay*7));
+    const qty=Math.max(1,Math.ceil(target-st));
+    return {id:p.id,name:p.name,sup:String(p.supplier||'').trim()||'Sin proveedor',stock:st,min:mn,qty,cost:Number(p.lastPurchaseCost)>0?Number(p.lastPurchaseCost):Number(p.cost)||0,on:true,unit:p.unit||'und',perDay};
+  }).sort((a,b)=>a.sup.localeCompare(b.sup,'es')||a.name.localeCompare(b.name,'es'));
+}
+function ensure(){
+  if($('avRestockModal'))return;
+  const m=document.createElement('div');m.id='avRestockModal';m.className='av-modal';
+  m.innerHTML=`<div class="av-sheet" role="dialog" aria-modal="true" aria-label="Qué comprar hoy"><div class="av-head"><h3>🛒 Qué comprar hoy</h3><button type="button" class="av-x" id="avrX" aria-label="Cerrar">×</button></div><div class="av-body"><p class="av-hint">Productos con stock bajo o agotados. La cantidad sugerida alcanza para unos 7 días según tus ventas. Puedes cambiarla o quitar lo que no necesitas.</p><div id="avrList"></div></div><div class="av-foot"><div class="av-tot" id="avrTot"></div><button type="button" class="secondary" id="avrCopy">📋 Copiar</button></div></div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+  $('avrX').onclick=()=>m.classList.remove('open');
+  const L=$('avrList');
+  L.addEventListener('input',e=>{const el=e.target;if(!el.classList.contains('avr-q'))return;const r=rows.find(x=>String(x.id)===el.dataset.id);if(r){const v=parseFloat(String(el.value).replace(',','.'));r.qty=isFinite(v)&&v>0?v:0;totals();}});
+  L.addEventListener('change',e=>{const el=e.target;if(!el.classList.contains('avr-c'))return;const r=rows.find(x=>String(x.id)===el.dataset.id);if(r){r.on=el.checked;totals();}});
+  L.addEventListener('click',e=>{const b=e.target.closest('.avr-send');if(b)send(b.dataset.s);});
+  $('avrCopy').onclick=()=>{const t=text(null);try{navigator.clipboard.writeText(t);toast('success','Copiado','Lista de compras copiada.','📋');}catch(e){}};
+}
+function listText(sup,items){
+  const lines=items.map(r=>`• ${fq(r.qty)} ${r.unit} — ${r.name}`).join('\n');
+  return `Hola${sup&&sup!=='Sin proveedor'?' '+sup:''} 👋, necesito el siguiente pedido para *${(state.business&&state.business.name)||'mi negocio'}*:\n\n${lines}\n\n¿Me confirmas disponibilidad y precio? Gracias 🙏`;
+}
+function text(sup){
+  const by={};rows.filter(r=>r.on&&r.qty>0&&(!sup||r.sup===sup)).forEach(r=>(by[r.sup]=by[r.sup]||[]).push(r));
+  return Object.keys(by).map(s=>`*${s}*\n`+by[s].map(r=>`• ${fq(r.qty)} ${r.unit} — ${r.name}`).join('\n')).join('\n\n');
+}
+function send(sup){
+  const items=rows.filter(r=>r.on&&r.qty>0&&r.sup===sup);
+  if(!items.length){toast('error','Sin productos','Marca al menos un producto.','!');return;}
+  const t=listText(sup,items);
+  if(navigator.share){navigator.share({text:t}).catch(()=>{});}
+  else window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank');
+}
+function totals(){
+  const on=rows.filter(r=>r.on&&r.qty>0),tot=on.reduce((a,r)=>a+r.qty*r.cost,0);
+  $('avrTot').innerHTML=`${on.length} producto${on.length===1?'':'s'}<b>≈ ${fm(tot)}</b>`;
+  document.querySelectorAll('.avr-sub').forEach(el=>{const s=el.dataset.s;el.textContent=fm(rows.filter(r=>r.on&&r.qty>0&&r.sup===s).reduce((a,r)=>a+r.qty*r.cost,0));});
+}
+function render(){
+  const L=$('avrList');
+  if(!rows.length){L.innerHTML='<div class="av-empty">Todo en orden: ningún producto está por agotarse. ✅</div>';$('avrTot').textContent='';return;}
+  const by={};rows.forEach(r=>(by[r.sup]=by[r.sup]||[]).push(r));
+  L.innerHTML=Object.keys(by).map(s=>`<div class="av-sec" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>🏷️ ${esc(s)} · <span class="avr-sub" data-s="${esc(s)}"></span></span><button type="button" class="secondary avr-send" data-s="${esc(s)}" style="padding:6px 10px;font-size:12px">📱 Enviar</button></div>`+by[s].map(r=>`<div class="av-row" style="display:flex;gap:10px;align-items:center"><input type="checkbox" class="avr-c" data-id="${esc(r.id)}" ${r.on?'checked':''} style="width:20px;height:20px"><div style="flex:1;min-width:0"><div style="font-weight:800;font-size:14px">${esc(r.name)}</div><div class="av-unit">Stock ${fq(r.stock)} · mínimo ${fq(r.min)}${r.perDay>0?` · vendes ~${fq(+(r.perDay*7).toFixed(1))}/semana`:''}</div></div><input class="av-qty avr-q" data-id="${esc(r.id)}" inputmode="decimal" value="${fq(r.qty)}" style="width:70px"></div>`).join('')).join('');
+  totals();
+}
+window.openRestock=function(){ensure();build();render();$('avRestockModal').classList.add('open');};
+window.avRestockRows=()=>{build();return rows;};
+function inject(){
+  const menu=document.querySelector('#productMenu .pf-menu-list');
+  if(menu&&!menu.querySelector('.av-restock-menu')){const b=document.createElement('button');b.type='button';b.className='av-restock-menu';b.textContent='🛒 Qué comprar hoy';b.onclick=()=>{try{closeProductMenu();}catch(e){}openRestock();};menu.insertBefore(b,menu.firstChild);}
+  const sb=$('avSummaryModal');
+  if(sb&&!sb._rs){sb._rs=1;sb.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('.av-low')){sb.classList.remove('open');openRestock();}});}
+}
+inject();
+const _rp=window.renderProducts;
+if(typeof _rp==='function'&&!_rp.__rs){const w=function(){const r=_rp.apply(this,arguments);try{inject();}catch(e){}return r;};w.__rs=true;window.renderProducts=w;}
+document.addEventListener('click',e=>{const x=e.target.closest&&e.target.closest('#avsBody .av-box');if(x&&/stock bajo/.test(x.textContent)){$('avSummaryModal').classList.remove('open');openRestock();}});
+})();
+</script>
+<script id="av-patch-pos">
+/* ===== POS: cobrar por monto ("2 soles de pan") y cambiar precio de una línea ===== */
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fm=v=>{try{return money(v)}catch(e){return 'S/ '+(Number(v)||0).toFixed(2)}};
+const toast=(t,a,b,i)=>{try{showAppToast(t,a,b,i)}catch(e){}};
+const num=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isFinite(n)?n:NaN;};
+const fq=q=>{q=Number(q)||0;return Number.isInteger(q)?String(q):String(+q.toFixed(3));};
+let cur=null,mode='amount'; /* cur: cart line */
+
+function ensure(){
+  if($('avLineModal'))return;
+  const m=document.createElement('div');m.id='avLineModal';m.className='av-modal';
+  m.innerHTML=`<div class="av-sheet" role="dialog" aria-modal="true" aria-label="Ajustar precio"><div class="av-head"><h3 id="avlTitle">Ajustar</h3><button type="button" class="av-x" id="avlX" aria-label="Cerrar">×</button></div><div class="av-body">
+    <div class="av-chips" id="avlTabs" style="margin-bottom:10px"><button type="button" data-m="amount">💵 Cobrar un monto</button><button type="button" data-m="price">🏷️ Cambiar precio</button></div>
+    <p class="av-hint" id="avlHint"></p>
+    <div class="av-field"><label id="avlLabel"></label><input id="avlIn" inputmode="decimal" autocomplete="off" placeholder="0.00" style="font-size:24px;font-weight:800"></div>
+    <div class="av-chips" id="avlChips" style="margin-bottom:8px"></div>
+    <div id="avlPrev" class="av-box" style="background:#f1f5f9;color:#0f172a"></div></div>
+    <div class="av-foot"><button type="button" class="secondary" id="avlReset">Restablecer</button><button type="button" class="primary" id="avlOk">Aplicar</button></div></div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+  $('avlX').onclick=()=>m.classList.remove('open');
+  $('avlTabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b){mode=b.dataset.m;paint(true);}});
+  $('avlIn').addEventListener('input',preview);
+  $('avlIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();apply();}});
+  $('avlChips').addEventListener('click',e=>{const b=e.target.closest('button');if(b){$('avlIn').value=b.dataset.v;preview();}});
+  $('avlOk').onclick=apply;
+  $('avlReset').onclick=reset;
+  m.addEventListener('keydown',e=>{if(e.key==='Escape')m.classList.remove('open');});
+}
+const unitPrice=c=>Number(c.priceOv>0?c.listPrice||c.price:c.price)||0;
+function paint(clear){
+  [...$('avlTabs').children].forEach(b=>b.classList.toggle('on',b.dataset.m===mode));
+  const c=cur,up=Number(c.listPrice)>0&&c.priceOv>0?Number(c.listPrice):Number(c.price)||0;
+  $('avlTitle').textContent=c.name;
+  if(mode==='amount'){
+    $('avlLabel').textContent='¿Cuántos soles quiere llevar? (S/)';
+    $('avlHint').innerHTML=`Precio actual: <b>${fm(up)}</b> por ${esc(c.presName||'unidad')}. Pon el monto y calculo la cantidad.`;
+    $('avlChips').innerHTML=[0.5,1,2,3,5,10,20].map(v=>`<button type="button" data-v="${v}">S/ ${v}</button>`).join('');
+    if(clear)$('avlIn').value=c.amountMode?Number(c.qty*up).toFixed(2):'';
+  }else{
+    $('avlLabel').textContent='Nuevo precio por '+(c.presName||'unidad')+' (S/)';
+    $('avlHint').innerHTML=`Precio de lista: <b>${fm(up)}</b>. El cambio solo vale para esta venta.`;
+    $('avlChips').innerHTML='';
+    if(clear)$('avlIn').value=Number(c.price).toFixed(2);
+  }
+  preview();setTimeout(()=>{$('avlIn').focus();$('avlIn').select();},40);
+}
+function stockMax(c){
+  const p=state.products.find(x=>String(x.id)===String(c.id));if(!p)return Infinity;
+  const others=state.cart.filter(x=>x.id===c.id&&x!==c).reduce((a,x)=>a+(Number(x.qty)||0)*(Number(x.factor)||1),0);
+  return ((Number(p.stock)||0)-others)/(Number(c.factor)||1);
+}
+function preview(){
+  const v=num($('avlIn').value),c=cur,box=$('avlPrev');
+  const up=Number(c.listPrice)>0&&c.priceOv>0?Number(c.listPrice):Number(c.price)||0;
+  if(!(v>0)){box.innerHTML='Escribe un monto.';box.dataset.ok='';return;}
+  const p=state.products.find(x=>String(x.id)===String(c.id));
+  if(mode==='amount'){
+    const q=Math.round(v/up*1000)/1000,mx=stockMax(c);
+    const unit=(c.wt||(/kg|kilo/i.test(c.presName||'')||/^kg|kilo/i.test(p?.unit||'')))?'kg':(p?.unit&&p.unit!=='unidad'?p.unit:'und');
+    box.innerHTML=`${fm(v)} = <b>${fq(q)} ${esc(unit)}</b> de ${esc(c.name)}`+(q>mx+1e-9?`<br><span style="color:#dc2626">⚠️ Solo hay ${fq(Math.max(0,Math.floor(mx*1000)/1000))} en stock</span>`:'');
+    box.dataset.ok=q>0?'1':'';
+  }else{
+    const cost=(Number(p?.cost)||0)*(Number(c.factor)||1);
+    box.innerHTML=`Total de la línea: <b>${fm(v*c.qty)}</b> (${fq(c.qty)} × ${fm(v)})`+(cost>0&&v<cost?`<br><span style="color:#dc2626">⚠️ Menor al costo (${fm(cost)}): perderías ${fm((cost-v)*c.qty)}</span>`:'');
+    box.dataset.ok='1';
+  }
+}
+function apply(){
+  const v=num($('avlIn').value);if(!(v>0)){toast('error','Falta el monto','Escribe un valor mayor a 0.','!');return;}
+  const c=cur;
+  if(mode==='amount'){
+    const up=Number(c.listPrice)>0&&c.priceOv>0?Number(c.listPrice):Number(c.price)||0;
+    if(c.priceOv>0){c.price=up;delete c.priceOv;}
+    let q=v/up;const mx=stockMax(c);
+    if(q>mx+1e-9){q=Math.max(0,Math.floor(mx*1000)/1000);toast('error','Stock insuficiente','Máximo disponible: '+fq(q),'!');if(q<=0)return;}
+    c.qty=q;c.amountMode=true;
+    if(!Number.isInteger(q)&&!c.wt)c.wt='kg';
+  }else{
+    if(!(Number(c.listPrice)>0))c.listPrice=Number(c.price)||0;
+    c.price=Math.round(v*100)/100;c.priceOv=c.price;c.priceLevel='Precio ajustado';
+  }
+  $('avLineModal').classList.remove('open');
+  try{renderPOS();}catch(e){renderCart();}
+}
+function reset(){
+  const c=cur;
+  if(c.priceOv>0){c.price=Number(c.listPrice)||c.price;delete c.priceOv;if(c.priceLevel==='Precio ajustado')c.priceLevel='Minorista';}
+  if(c.amountMode){c.qty=1;delete c.amountMode;delete c.wt;}
+  $('avLineModal').classList.remove('open');
+  try{refreshCartWholesalePrices();}catch(e){}
+  try{renderPOS();}catch(e){renderCart();}
+}
+window.openLineAdjust=function(idx,m){const c=state.cart[idx];if(!c)return;ensure();cur=c;mode=m||'amount';paint(true);$('avLineModal').classList.add('open');};
+
+/* que los descuentos por mayor / cambios de presentación no pisen el precio ajustado */
+const rw=window.refreshCartWholesalePrices;
+if(typeof rw==='function'&&!rw.__pos){const w=function(){const r=rw.apply(this,arguments);try{state.cart.forEach(c=>{if(c.priceOv>0){c.price=c.priceOv;}});}catch(e){}return r;};w.__pos=true;window.refreshCartWholesalePrices=w;}
+const cp=window.changeCartPresentation;
+if(typeof cp==='function'&&!cp.__pos){const w=function(key){try{const c=state.cart.find(x=>String(x.key)===String(key));if(c){delete c.priceOv;delete c.listPrice;delete c.amountMode;if(c.priceLevel==='Precio ajustado')c.priceLevel='Minorista';}}catch(e){}return cp.apply(this,arguments);};w.__pos=true;window.changeCartPresentation=w;}
+
+/* al cobrar: cada línea con cantidad decimal se ajusta para que su importe sea exacto en céntimos */
+(function(){
+  const o=window.processCheckoutFinal;if(typeof o!=='function'||o.__pos)return;
+  const w=function(){
+    try{state.cart.forEach(c=>{const q=Number(c.qty)||0,pr=Number(c.price)||0;if(pr>0&&!Number.isInteger(q)){c.qty=Math.round(pr*q*100)/100/pr;}});}catch(e){}
+    const n0=(state.sales||[]).length;
+    const r=o.apply(this,arguments);
+    try{if((state.sales||[]).length>n0)(state.sales[0].items||[]).forEach(i=>{if(!Number.isInteger(i.qty))i.qty=Math.round(i.qty*1000)/1000;});(state.products||[]).forEach(p=>{if(!Number.isInteger(p.stock))p.stock=Math.round(p.stock*1000)/1000;});save();}catch(e){}
+    return r;
+  };
+  w.__pos=true;window.processCheckoutFinal=w;
+})();
+
+/* botón 💲 en cada línea del carrito */
+function decorate(){
+  document.querySelectorAll('#cartList .cart-pos-row').forEach((row,idx)=>{
+    const ctl=row.querySelector('.cart-pos-controls');if(!ctl||ctl.querySelector('.av-adj'))return;
+    const c=state.cart[idx];if(!c)return;
+    const b=document.createElement('button');b.type='button';b.className='secondary av-adj';b.textContent='💲';b.title='Cobrar por monto o cambiar precio';
+    b.style.cssText='padding:4px 8px;margin-left:4px;font-size:13px;'+((c.priceOv>0||c.amountMode)?'background:#fef3c7;border-color:#d97706':'');
+    b.onclick=()=>openLineAdjust(idx,c.priceOv>0?'price':'amount');
+    ctl.appendChild(b);
+    const info=row.querySelector('.cart-pos-unit');
+    if(info&&c.priceOv>0&&!row.querySelector('.av-adjtag')){const t=document.createElement('div');t.className='av-adjtag';t.style.cssText='font-size:11px;font-weight:800;color:#b45309';t.textContent='Precio ajustado (lista '+fm(c.listPrice)+')';info.after(t);}
+    if(c.amountMode&&!row.querySelector('.av-adjtag')&&info){const t=document.createElement('div');t.className='av-adjtag';t.style.cssText='font-size:11px;font-weight:800;color:#b45309';t.textContent='Por monto: '+fm(c.qty*c.price);info.after(t);}
+  });
+}
+const rc=window.renderCart;
+window.renderCart=function(){const r=rc.apply(this,arguments);try{decorate();}catch(e){console.warn(e);}return r;};
+try{decorate();}catch(e){}
 })();
 </script>
 </body></html>
