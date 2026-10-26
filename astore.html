@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="es">
-<head><link rel="manifest" href="./manifest1.json">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f172a">
-<title>Astore Admin V3 · Trabajadores y sucursales</title>
+<title>Astore Admin V4 · Negocios y cobros</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f1f5f9;color:#0f172a}
 button,input,select{font:inherit}button{cursor:pointer;border:0}.hidden{display:none!important}
@@ -38,20 +38,30 @@ input:focus,select:focus{border-color:#0f172a;box-shadow:0 0 0 3px #0f172a12}
 @media(max-width:800px){.side{width:62px!important;padding:8px 5px!important}.navbtn{font-size:0!important;padding:12px 4px!important;text-align:center}.navbtn:first-letter{font-size:20px}.side .nav-label{display:none!important}.content{padding:12px!important}.cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}.cards .card{min-width:0;padding:13px}.head h2{font-size:21px}.toolbar{gap:8px}.actions{flex-wrap:wrap}.actions button{min-height:40px}}
 @media(max-width:480px){.login-card{padding:22px!important}.content{padding:9px!important}.cards{gap:8px!important}.stat{font-size:22px!important}.panel{padding:13px!important}.head .primary{width:100%}.cards .card{padding:11px!important}.topbar{padding:0 12px!important}}
 </style>
+<style id="v4-extra">
+.badge.warn{background:#fef3c7;color:#92400e}.badge.info{background:#e0f2fe;color:#075985}.badge.mute{background:#e2e8f0;color:#334155}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.tabs button{background:#e2e8f0;padding:8px 12px;border-radius:999px;font-weight:650}.tabs button.on2{background:#064e3b;color:#fff}
+.note{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:10px 12px;font-size:13px;color:#065f46;margin:10px 0}.note.bad{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0b211a;color:#ecfdf5;padding:11px 16px;border-radius:12px;z-index:60;font-weight:650;max-width:90vw}
+.mode{position:fixed;right:10px;bottom:8px;font-size:11px;color:#94a3b8}.linkbtn{background:none;color:#047857;text-decoration:underline;padding:0;font-size:13px}
+.mini{font-size:12px;color:#64748b}.content,.layout>main{min-width:0}.layout{max-width:100vw}
+</style>
 </head>
 <body>
 <div id="loginView" class="login">
   <div class="login-card">
     <div class="logo">A</div>
     <h1>Astore Admin</h1>
-    <p class="muted">Panel independiente de administración</p>
+    <p class="muted" id="loginSub">Panel de administración</p>
     <form id="loginForm">
-      <div class="field"><label>Usuario</label><input id="loginUser" required placeholder="admin"></div>
-      <div class="field"><label>Contraseña</label><input id="loginPass" type="password" required placeholder="••••••"></div>
-      <button class="primary" style="width:100%;margin-top:8px">Ingresar</button>
+      <div class="field"><label id="lblUser">Correo</label><input id="loginUser" required autocomplete="username"></div>
+      <div class="field"><label>Contraseña</label><input id="loginPass" type="password" required autocomplete="current-password" minlength="8"></div>
+      <div class="field hidden" id="pass2Box"><label>Repite la contraseña</label><input id="loginPass2" type="password" autocomplete="new-password"></div>
+      <button class="primary" id="loginBtn" style="width:100%;margin-top:8px">Ingresar</button>
     </form>
     <p id="loginMsg" class="muted" style="color:#b91c1c;margin-top:12px"></p>
-    <div class="footer-note">V3 local · trabajadores, sucursales, planes y PIN · preparada para Supabase</div>
+    <button class="linkbtn" id="cloudLink" type="button">Conectar con la nube (Supabase)</button>
+    <div class="footer-note">V4 · negocios, cobros y facturación</div>
   </div>
 </div>
 
@@ -64,6 +74,9 @@ input:focus,select:focus{border-color:#0f172a;box-shadow:0 0 0 3px #0f172a12}
 <aside class="side">
   <button class="navbtn active" data-section="inicio">🏠 <span class="nav-label">Inicio</span></button>
   <button class="navbtn" data-section="tiendas">🏪 <span class="nav-label">Tiendas</span></button>
+  <button class="navbtn" data-section="cobros">💳 <span class="nav-label">Cobros</span></button>
+  <button class="navbtn" data-section="catalogo">📚 <span class="nav-label">Catálogo</span></button>
+  <button class="navbtn" data-section="facturacion">🧾 <span class="nav-label">Facturación</span></button>
   <button class="navbtn" data-section="usuarios">👤 <span class="nav-label">Usuarios</span></button>
   <button class="navbtn" data-section="sucursales">🏬 <span class="nav-label">Sucursales</span></button>
   <button class="navbtn" data-section="config">⚙️ <span class="nav-label">Configuración</span></button>
@@ -71,165 +84,574 @@ input:focus,select:focus{border-color:#0f172a;box-shadow:0 0 0 3px #0f172a12}
 <main id="content" class="content"></main>
 </div>
 </div>
-
 <div id="modal" class="modal hidden"><div class="modal-card">
 <div class="modal-head"><h3 id="modalTitle"></h3><button class="close" onclick="closeModal()">×</button></div>
 <div id="modalBody"></div>
 </div></div>
-
+<div class="mode" id="modeTag"></div>
 <script>
-const DATA_KEY="astore_admin_v1_data",SESSION_KEY="astore_admin_v1_session";
-let data=JSON.parse(localStorage.getItem(DATA_KEY)||"null")||{
- tiendas:[], sucursales:[],
- usuarios:[{id:crypto.randomUUID(),tiendaId:null,sucursalId:null,nombre:"Administrador Astore",usuario:"admin",rol:"Administrador",estado:"activa"}]
+/* ===== DIÁLOGOS ASTORE · reemplazan alert / confirm / prompt nativos de Android =====
+   alert(msg)            → cuadro propio (no bloquea; devuelve undefined como el original)
+   await avConfirm(msg)  → true/false     await avPrompt(msg,valor) → texto o null */
+(function(){
+'use strict';
+if(window.__avDlg)return;window.__avDlg=1;
+const TITLE=(window.AV_DIALOG_TITLE||'Astore');
+const css=document.createElement('style');
+css.textContent=`
+#avDlgBack{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(6,26,21,.55);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);opacity:0;transition:opacity .16s}
+#avDlgBack.on{opacity:1}
+#avDlg{width:min(400px,100%);background:#fff;color:#14201d;border-radius:24px;padding:22px 20px 16px;box-shadow:0 24px 70px rgba(6,26,21,.45);border:1px solid #d1fae5;transform:translateY(10px) scale(.97);transition:transform .18s;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-height:88vh;overflow:auto}
+#avDlgBack.on #avDlg{transform:none}
+#avDlg .avd-ic{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:26px;margin:0 auto 10px;background:#ecfdf5}
+#avDlg.warn .avd-ic{background:#fef3c7}#avDlg.err .avd-ic{background:#fee2e2}#avDlg.ok .avd-ic{background:#d1fae5}
+#avDlg .avd-t{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#047857;text-align:center;margin-bottom:6px}
+#avDlg.warn .avd-t{color:#b45309}#avDlg.err .avd-t{color:#be123c}
+#avDlg .avd-m{font-size:16px;line-height:1.45;text-align:center;white-space:pre-wrap;word-break:break-word;margin:0 2px 16px}
+#avDlg input{width:100%;box-sizing:border-box;padding:13px 14px;border:1.5px solid #a7f3d0;border-radius:12px;font:inherit;font-size:16px;margin:-4px 0 16px;outline:none}
+#avDlg input:focus{border-color:#10b981;box-shadow:0 0 0 3px #10b98128}
+#avDlg .avd-b{display:flex;gap:10px}
+#avDlg button{flex:1;min-height:48px;border-radius:14px;border:0;font:inherit;font-size:16px;font-weight:800;cursor:pointer}
+#avDlg .avd-ok{background:linear-gradient(135deg,#10b981,#047857);color:#fff;box-shadow:0 5px 16px #10b98133}
+#avDlg.err .avd-ok.danger,#avDlg .avd-ok.danger{background:linear-gradient(135deg,#f43f5e,#be123c);box-shadow:0 5px 16px #f43f5e33}
+#avDlg .avd-no{background:#eef2f1;color:#14201d}
+@media(prefers-color-scheme:dark){#avDlg{background:#10241d;color:#ecfdf5;border-color:#1c4a38}#avDlg .avd-no{background:#173a2e;color:#ecfdf5}#avDlg input{background:#0b211a;color:#ecfdf5;border-color:#1c4a38}}
+@media(max-width:520px){#avDlgBack{align-items:flex-end;padding:12px}#avDlg{border-radius:26px}}`;
+document.head.appendChild(css);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function kind(t){
+  if(/^\s*(✅|✓|☑)|(guardad[oa]|listo|correct[oa]|éxito|exitos|registrad[oa]|actualizad[oa]|copiad[oa])/i.test(t)&&!/error|no se pudo|inv[aá]lid/i.test(t))return['ok','✅'];
+  if(/(no se pudo|error|inv[aá]lid|incorrect|fall[oó]|no existe|ya existe|no permite|no tiene acceso|no coincid|vencid)/i.test(t))return['err','⛔'];
+  if(/(primero|falta|debes|debe |elige|selecciona|completa|revisa|obligatori|requiere|atenci[oó]n|⚠)/i.test(t))return['warn','⚠️'];
+  return['','💬'];
+}
+const queue=[];let busy=false;
+function next(){if(busy||!queue.length)return;busy=true;show(queue.shift())}
+function show(o){
+  const back=document.createElement('div');back.id='avDlgBack';
+  const [k,ic]=o.kind||kind(o.msg);
+  const isP=o.mode==='prompt',isC=o.mode==='confirm'||isP;
+  back.innerHTML=`<div id="avDlg" class="${k}" role="alertdialog" aria-modal="true" aria-label="${esc(o.title||TITLE)}"><div class="avd-ic">${o.icon||(isC&&!isP&&o.danger?'🗑️':isP?'✏️':isC&&!k?'❓':ic)}</div><div class="avd-t">${esc(o.title||TITLE)}</div><div class="avd-m">${esc(o.msg)}</div>${isP?`<input id="avdIn" type="${o.type||'text'}" value="${esc(o.def||'')}" autocomplete="off">`:''}<div class="avd-b">${isC?`<button class="avd-no" type="button">${esc(o.cancel||'Cancelar')}</button>`:''}<button class="avd-ok${o.danger?' danger':''}" type="button">${esc(o.ok||'Aceptar')}</button></div></div>`;
+  document.body.appendChild(back);requestAnimationFrame(()=>back.classList.add('on'));
+  const input=back.querySelector('#avdIn'),okb=back.querySelector('.avd-ok'),nob=back.querySelector('.avd-no');
+  const prev=document.activeElement;
+  let done=false;
+  const close=v=>{if(done)return;done=true;document.removeEventListener('keydown',onKey,true);back.classList.remove('on');setTimeout(()=>{back.remove();busy=false;try{prev&&prev.focus&&prev.focus()}catch(e){}o.resolve(v);next()},140)};
+  const accept=()=>close(isP?(input.value):true), cancel=()=>close(isP?null:false);
+  okb.onclick=accept;if(nob)nob.onclick=cancel;
+  back.addEventListener('mousedown',e=>{if(e.target===back&&isC)cancel()});
+  const onKey=e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();isC?cancel():accept()}else if(e.key==='Enter'&&!(e.target&&e.target.tagName==='BUTTON')){e.preventDefault();e.stopPropagation();accept()}};
+  document.addEventListener('keydown',onKey,true);
+  setTimeout(()=>{(input||okb).focus();if(input)input.select()},60);
+}
+function ask(o){return new Promise(res=>{o.resolve=res;queue.push(o);next()})}
+const norm=(m,o)=>Object.assign({msg:String(m==null?'':m)},o||{});
+window.avAlert=(m,o)=>ask(norm(m,Object.assign({mode:'alert'},o)));
+window.avConfirm=(m,o)=>ask(norm(m,Object.assign({mode:'confirm'},o)));
+window.avPrompt=(m,def,o)=>ask(norm(m,Object.assign({mode:'prompt',def:def||''},o)));
+window.alert=function(m){ if(!document.body){return} ask(norm(m,{mode:'alert'})) };
+/* Los alert/confirm/prompt nativos ya no deberían usarse: por si algún código viejo llama a confirm/prompt de forma síncrona,
+   se conserva el nativo como último recurso (para no romper la lógica). */
+})();
+
+/* ===== Astore Admin V4 =====
+   Dos modos con la misma pantalla:
+   · LOCAL  (sin nube): datos en el navegador, clave propia con hash. Sirve para probar/demos.
+   · NUBE   (Supabase): login real, datos en Postgres con RLS, claves/tokens solo en el servidor. */
+const CLOUD_KEY="astore_admin_cloud", LOCAL_KEY="astore_admin_v4_data", AUTH_KEY="astore_admin_v4_auth", SESSION_KEY="astore_admin_v4_session";
+const PLANES=["Básico","Pro","Ultra"], PLAN_CODE={"Básico":"basico","Pro":"pro","Ultra":"ultra"}, PLAN_NAME={basico:"Básico",pro:"Pro",ultra:"Ultra"};
+const LIMITES={"Básico":{suc:1,usr:3},"Pro":{suc:3,usr:10},"Ultra":{suc:Infinity,usr:Infinity}};
+const SUPABASE_JS="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js";
+let data={tiendas:[],sucursales:[],usuarios:[],pagos:[]}, B=null, section="inicio";
+const $=id=>document.getElementById(id);
+function esc(v=""){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2600)}
+const today=()=>new Date().toISOString().slice(0,10);
+const addDays=(d,n)=>{const x=new Date(d+"T00:00:00Z");x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};
+const daysTo=d=>Math.round((new Date(d+"T00:00:00Z")-new Date(today()+"T00:00:00Z"))/864e5);
+const getStore=id=>data.tiendas.find(x=>x.id===id), getBranch=id=>data.sucursales.find(x=>x.id===id);
+const money=n=>"S/ "+(Number(n)||0).toFixed(2);
+
+/* Estado real según pago */
+function estadoReal(s){
+  if(s.status==="suspended"||s.estado==="suspendida")return{t:"Suspendida",c:"off",k:"susp"};
+  if(s.status==="trial"||!s.paidUntil){const d=s.trialUntil?daysTo(s.trialUntil):0;return d>=0?{t:"Prueba · "+d+" d",c:"info",k:"prueba"}:{t:"Prueba vencida",c:"off",k:"venc"};}
+  const d=daysTo(s.paidUntil);
+  if(d>5)return{t:"Al día",c:"on",k:"ok"};
+  if(d>=0)return{t:"Vence en "+d+" d",c:"warn",k:"porvencer"};
+  if(d>=-7)return{t:"En gracia ("+(7+d)+" d)",c:"warn",k:"gracia"};
+  return{t:"Vencida",c:"off",k:"venc"};
+}
+
+/* ================= ADAPTADOR LOCAL ================= */
+const hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");
+async function pbk(pass,salt){const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(pass),"PBKDF2",false,["deriveBits"]);return hex(await crypto.subtle.deriveBits({name:"PBKDF2",salt,iterations:150000,hash:"SHA-256"},k,256))}
+const LocalB={
+  name:"local",
+  hasAuth(){return !!localStorage.getItem(AUTH_KEY)},
+  async setup(pass){const salt=crypto.getRandomValues(new Uint8Array(16));localStorage.setItem(AUTH_KEY,JSON.stringify({salt:hex(salt),h:await pbk(pass,salt)}))},
+  async login(user,pass){const a=JSON.parse(localStorage.getItem(AUTH_KEY)||"null");if(!a)throw Error("Primero crea una contraseña.");
+    const salt=new Uint8Array(a.salt.match(/../g).map(x=>parseInt(x,16)));if(await pbk(pass,salt)!==a.h)throw Error("Contraseña incorrecta.");sessionStorage.setItem(SESSION_KEY,"1")},
+  async resume(){return sessionStorage.getItem(SESSION_KEY)==="1"},
+  async logout(){sessionStorage.removeItem(SESSION_KEY)},
+  async load(){const d=JSON.parse(localStorage.getItem(LOCAL_KEY)||"null")||{tiendas:[],sucursales:[],usuarios:[],pagos:[]};d.pagos||=[];return d},
+  persist(){localStorage.setItem(LOCAL_KEY,JSON.stringify(data));publishToPOS()},
+  async saveStore(obj,id){
+    if(id){Object.assign(getStore(id),obj);return id}
+    const nid=crypto.randomUUID();
+    data.tiendas.push({id:nid,...obj,status:"trial",estado:"activa",trialUntil:addDays(today(),14),paidUntil:null,billing:{provider:"nubefact",endpoint:"",env:"beta",enabled:false,tokenSet:false},fechaCreacion:new Date().toISOString()});
+    data.sucursales.push({id:crypto.randomUUID(),tiendaId:nid,nombre:"Sede principal",codigo:"PRINCIPAL",direccion:obj.direccion||"",telefono:obj.telefono||"",principal:true,estado:"activa"});
+    this.persist();return nid},
+  async setStatus(id,st){const s=getStore(id);s.status=st;s.estado=st==="suspended"?"suspendida":"activa";this.persist()},
+  async saveBranch(obj,id){if(id)Object.assign(getBranch(id),obj);else data.sucursales.push({id:crypto.randomUUID(),...obj});this.persist()},
+  async setBranchStatus(id,est){const b=getBranch(id);b.estado=est;this.persist()},
+  async saveUser(obj,id){if(id)Object.assign(data.usuarios.find(x=>x.id===id),obj);else data.usuarios.push({id:crypto.randomUUID(),...obj});this.persist()},
+  async addPayment(p){
+    data.pagos.push({id:crypto.randomUUID(),...p});
+    const s=getStore(p.tiendaId);const base=s.paidUntil&&s.paidUntil>today()?s.paidUntil:today();
+    const d=new Date(base+"T00:00:00Z");d.setUTCMonth(d.getUTCMonth()+Number(p.meses));
+    s.paidUntil=d.toISOString().slice(0,10);s.status="active";s.estado="activa";this.persist()},
+  async saveBilling(id,b,token){const s=getStore(id);s.billing={...s.billing,...b};if(token){s.billing.tokenSet=true;s.billing._token=token}this.persist()},
+  /* catálogo compartido */
+  _cat(){data.catalogo||=[];return data.catalogo},
+  async catCounts(){const c={pendiente:0,aprobado:0,rechazado:0};this._cat().forEach(x=>c[x.estado]++);return c},
+  async catList({q="",estado="",page=0,size=50}){const f=fold(q);let r=this._cat().filter(x=>(!estado||x.estado===estado)&&(!f||fold([x.barcode,x.nombre,x.marca,x.categoria].join(" ")).includes(f)));
+    r=[...r].sort((a,b)=>(a.estado==="pendiente"?0:1)-(b.estado==="pendiente"?0:1)||String(a.nombre).localeCompare(b.nombre));return{total:r.length,rows:r.slice(page*size,page*size+size)}},
+  async catSetStatus(codes,estado){const s=new Set(codes);this._cat().forEach(x=>{if(s.has(x.barcode))x.estado=estado});this.persist()},
+  async catSave(o,isNew){const l=this._cat(),i=l.findIndex(x=>x.barcode===o.barcode);
+    if(isNew&&i>=0)throw Error("Ese código ya existe en el catálogo.");if(i>=0)Object.assign(l[i],o);else l.push({...o,estado:"aprobado",origen:"admin",votos:0});this.persist()},
+  async catImport(rows,origen){let nuevos=0,actualizados=0;const l=this._cat(),m=new Map(l.map(x=>[x.barcode,x]));
+    rows.forEach(r=>{const e=m.get(r.barcode);if(e){e.nombre=r.nombre;e.marca=r.marca||e.marca;e.tamano=r.tamano||e.tamano;e.categoria=r.categoria||e.categoria;if(e.estado!=="rechazado")e.estado="aprobado";actualizados++}
+      else{const n={...r,estado:"aprobado",origen,votos:0};l.push(n);m.set(r.barcode,n);nuevos++}});this.persist();return{nuevos,actualizados,invalidos:0}}
 };
-data.sucursales ||= []; data.usuarios ||= []; data.tiendas ||= [];
-function save(){localStorage.setItem(DATA_KEY,JSON.stringify(data));localStorage.setItem("astore_admin_v1_data",JSON.stringify(data));publishBranches();}
-function esc(v=""){return String(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
-function getStore(id){return data.tiendas.find(x=>x.id===id)}
-function showApp(){loginView.classList.add("hidden");appView.classList.remove("hidden");render("inicio")}
-function showLogin(){appView.classList.add("hidden");loginView.classList.remove("hidden")}
-function render(section="inicio"){
- document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("active",b.dataset.section===section));
- if(section==="inicio")content.innerHTML=dashboard();
- if(section==="tiendas")content.innerHTML=stores();
- if(section==="usuarios")content.innerHTML=users();
- if(section==="sucursales")content.innerHTML=branches();
- if(section==="config")content.innerHTML=config();
+/* El POS actual lee estas llaves (compatibilidad con V80+) */
+function publishToPOS(){try{
+  localStorage.setItem("astore_v80_tenants",JSON.stringify(data.tiendas.map(s=>({tenantId:s.id,id:s.id,tenantName:s.nombre,ruc:s.ruc||"",regimen:s.regimen,tipoContribuyente:s.tipoContribuyente,pin:s.pin||"",plan:s.plan,taxStatus:s.taxStatus,accounting:{regimen:s.regimen,igv:s.regimen!=="NRUS"},estado:s.estado,paidUntil:s.paidUntil}))));
+  localStorage.setItem("astore_v80_branches",JSON.stringify(data.sucursales.map(b=>({...b,tenantId:b.tiendaId,tenantName:getStore(b.tiendaId)?.nombre||""}))));
+  localStorage.setItem("astore_v80_store_users",JSON.stringify(data.usuarios.map(u=>({id:u.id,username:u.usuario,pin:u.pin||"",nombre:u.nombre,rol:u.rol,tiendaId:u.tiendaId,sucursalId:u.sucursalId||null,estado:u.estado}))));
+}catch(e){}}
+
+/* ================= ADAPTADOR SUPABASE ================= */
+function SupaB(cfg){
+  let sb=null;
+  const must=r=>{if(r.error)throw Error(r.error.message||String(r.error));return r.data};
+  const fn=async(body)=>{const r=await sb.functions.invoke("admin-users",{body});if(r.error)throw Error((r.data&&r.data.error)||r.error.message);return r.data};
+  const lib=async()=>{if(sb)return;if(!window.supabase)await new Promise((ok,no)=>{const s=document.createElement("script");s.src=SUPABASE_JS;s.onload=ok;s.onerror=()=>no(Error("No se pudo cargar la librería de Supabase (¿sin internet?)"));document.head.appendChild(s)});
+    sb=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:true}})};
+  const mapStore=(t,acc)=>({id:t.id,nombre:t.name,propietario:t.owner_name||"",ruc:t.ruc||"",telefono:t.phone||"",direccion:t.address||"",plan:PLAN_NAME[t.plan_code]||"Básico",
+    regimen:t.regimen,tipoContribuyente:t.taxpayer_type||"Persona natural",status:t.status,estado:t.status==="suspended"?"suspendida":"activa",trialUntil:t.trial_until,paidUntil:t.paid_until,hasPin:!!t.pin_hash,
+    billing:acc?{provider:acc.provider,endpoint:acc.endpoint||"",env:acc.environment,enabled:acc.enabled,tokenSet:!!acc.token_set}:{provider:"nubefact",endpoint:"",env:"beta",enabled:false,tokenSet:false}});
+  return{
+    name:"supabase",
+    hasAuth(){return true},
+    async login(email,pass){await lib();const r=await sb.auth.signInWithPassword({email,password:pass});if(r.error)throw Error("Correo o contraseña incorrectos.");
+      const p=await sb.from("profiles").select("role,status").eq("id",r.data.user.id).single();
+      if(p.error||!p.data||p.data.role!=="superadmin"||p.data.status!=="active"){await sb.auth.signOut();throw Error("Esta cuenta no tiene acceso al panel de administración.")}},
+    async resume(){try{await lib();const s=await sb.auth.getSession();if(!s.data.session)return false;
+      const p=await sb.from("profiles").select("role").eq("id",s.data.session.user.id).single();return p.data?.role==="superadmin"}catch(e){return false}},
+    async logout(){await lib();await sb.auth.signOut()},
+    async load(){
+      const [t,b,p,pay,acc]=await Promise.all([sb.from("tenants").select("*").order("created_at"),sb.from("branches").select("*"),sb.from("profiles").select("*").neq("role","superadmin"),sb.from("payments").select("*").order("paid_on",{ascending:false}),sb.from("invoicing_accounts").select("*")]);
+      const accs=Object.fromEntries(must(acc).map(a=>[a.tenant_id,a]));
+      return{tiendas:must(t).map(x=>mapStore(x,accs[x.id])),
+        sucursales:must(b).map(x=>({id:x.id,tiendaId:x.tenant_id,nombre:x.name,codigo:x.code||"",direccion:x.address||"",telefono:x.phone||"",principal:x.is_main,estado:x.status==="active"?"activa":"suspendida"})),
+        usuarios:must(p).map(x=>({id:x.id,tiendaId:x.tenant_id,sucursalId:x.branch_id,nombre:x.full_name,usuario:x.username||"",rol:x.role,estado:x.status==="active"?"activa":"suspendida"})),
+        pagos:must(pay).map(x=>({id:x.id,tiendaId:x.tenant_id,monto:Number(x.amount),meses:x.months,metodo:x.method||"",ref:x.reference||"",fecha:x.paid_on}))}},
+    persist(){},
+    async saveStore(o,id){
+      const row={name:o.nombre,owner_name:o.propietario,ruc:o.ruc||null,phone:o.telefono,address:o.direccion,regimen:o.regimen,taxpayer_type:o.tipoContribuyente,plan_code:PLAN_CODE[o.plan]};
+      if(id){must(await sb.from("tenants").update(row).eq("id",id));if(o.pin)must(await sb.rpc("set_tenant_pin",{p_tenant:id,p_pin:o.pin}));return id}
+      const nid=must(await sb.rpc("admin_create_tenant",{p_name:o.nombre,p_ruc:o.ruc||"",p_regimen:o.regimen,p_plan:PLAN_CODE[o.plan],p_owner:o.propietario,p_phone:o.telefono,p_pin:o.pin||null}));
+      must(await sb.from("tenants").update({address:o.direccion,taxpayer_type:o.tipoContribuyente}).eq("id",nid));return nid},
+    async setStatus(id,st){must(await sb.from("tenants").update({status:st}).eq("id",id))},
+    async saveBranch(o,id){const row={tenant_id:o.tiendaId,name:o.nombre,code:o.codigo||null,address:o.direccion,phone:o.telefono,is_main:o.principal,status:o.estado==="activa"?"active":"suspended"};
+      if(id)must(await sb.from("branches").update(row).eq("id",id));else must(await sb.from("branches").insert(row))},
+    async setBranchStatus(id,est){must(await sb.from("branches").update({status:est==="activa"?"active":"suspended"}).eq("id",id))},
+    async saveUser(o,id){await fn({action:"upsert_user",id,tenant_id:o.tiendaId,branch_id:o.sucursalId,full_name:o.nombre,username:o.usuario,email:o.email,password:o.password,role:o.rol,pin:o.pin,status:o.estado==="activa"?"active":"suspended"})},
+    async addPayment(p){must(await sb.from("payments").insert({tenant_id:p.tiendaId,amount:p.monto,months:p.meses,method:p.metodo,reference:p.ref,paid_on:p.fecha}))},
+    async saveBilling(id,b,token){must(await sb.from("invoicing_accounts").update({provider:b.provider,endpoint:b.endpoint,environment:b.env,enabled:b.enabled}).eq("tenant_id",id));
+      if(token)await fn({action:"set_token",tenant_id:id,token})},
+    /* catálogo compartido */
+    async catCounts(){const c={pendiente:0,aprobado:0,rechazado:0};const m={pendiente:"pending",aprobado:"approved",rechazado:"rejected"};
+      await Promise.all(Object.keys(m).map(async k=>{const r=await sb.from("catalog_products").select("barcode",{count:"exact",head:true}).eq("status",m[k]);if(r.error)throw Error(r.error.message);c[k]=r.count||0}));return c},
+    async catList({q="",estado="",page=0,size=50}){const m={pendiente:"pending",aprobado:"approved",rechazado:"rejected"},im={pending:"pendiente",approved:"aprobado",rejected:"rechazado"};
+      let r=sb.from("catalog_products").select("*",{count:"exact"});if(estado)r=r.eq("status",m[estado]);
+      const s=q.trim().replace(/[%,()]/g," ");if(s)r=r.or(`name.ilike.%${s}%,brand.ilike.%${s}%,barcode.ilike.%${s}%`);
+      r=r.order("status",{ascending:false}).order("name").range(page*size,page*size+size-1);const x=await r;if(x.error)throw Error(x.error.message);
+      return{total:x.count||0,rows:x.data.map(p=>({barcode:p.barcode,nombre:p.name,marca:p.brand||"",tamano:p.size||"",categoria:p.category||"",imagen:p.image_url||"",estado:im[p.status],origen:p.source,votos:p.votes}))}},
+    async catSetStatus(codes,estado){const m={pendiente:"pending",aprobado:"approved",rechazado:"rejected"};must(await sb.from("catalog_products").update({status:m[estado],updated_at:new Date().toISOString()}).in("barcode",codes))},
+    async catSave(o,isNew){const row={barcode:o.barcode,name:o.nombre,brand:o.marca||null,size:o.tamano||null,category:o.categoria||null,image_url:o.imagen||null};
+      if(isNew)must(await sb.from("catalog_products").insert({...row,status:"approved",source:"admin"}));else must(await sb.from("catalog_products").update(row).eq("barcode",o.barcode))},
+    async catImport(rows,origen){const tot={nuevos:0,actualizados:0,invalidos:0};
+      for(let i=0;i<rows.length;i+=500){const r=must(await sb.rpc("admin_import_catalog",{p_rows:rows.slice(i,i+500).map(x=>({barcode:x.barcode,name:x.nombre,brand:x.marca,size:x.tamano,category:x.categoria})),p_source:origen}));
+        tot.nuevos+=r.nuevos;tot.actualizados+=r.actualizados;tot.invalidos+=r.invalidos}return tot}
+  };
 }
+
+/* ================= PANTALLAS ================= */
+function render(sec){
+  if(sec)section=sec;
+  document.querySelectorAll(".navbtn").forEach(b=>b.classList.toggle("active",b.dataset.section===section));
+  const f={inicio:dashboard,tiendas:stores,cobros:cobros,catalogo:catalogo,facturacion:facturacion,usuarios:users,sucursales:branches,config:config}[section];
+  $("content").innerHTML=f();
+  $("modeTag").textContent=B.name==="supabase"?"☁️ conectado a la nube":"💾 modo local (sin nube)";
+}
+async function refresh(sec){try{data=await B.load();data.pagos||=[]}catch(e){toast("Error al cargar: "+e.message)}render(sec)}
+async function act(fn,okMsg){try{await fn();if(okMsg)toast(okMsg);await refresh();return true}catch(e){alert(e.message);return false}}
+
 function dashboard(){
- const active=data.tiendas.filter(s=>s.estado==="activa").length;
- return `<div class="head"><div><h2>Inicio</h2><div class="muted">Resumen de Astore</div></div><button class="primary" onclick="openStore()">+ Nueva tienda</button></div>
- <div class="cards">
- <div class="card"><div class="muted">Tiendas</div><div class="stat">${data.tiendas.length}</div></div>
- <div class="card"><div class="muted">Activas</div><div class="stat">${active}</div></div>
- <div class="card"><div class="muted">Suspendidas</div><div class="stat">${data.tiendas.length-active}</div></div>
- <div class="card"><div class="muted">Usuarios</div><div class="stat">${data.usuarios.length}</div></div><div class="card"><div class="muted">Sucursales</div><div class="stat">${data.sucursales.length}</div></div></div>
- <div class="panel"><h3>🚀 Planes Astore</h3><div class="cards" style="grid-template-columns:repeat(3,1fr)"><div class="card plan-basic"><b>🟢 Básico</b><div class="muted">NRUS · boletas/tickets y funciones esenciales.</div></div><div class="card plan-pro"><b>🔵 Pro</b><div class="muted">RER/RMT/RG · comprobantes y contabilidad avanzada según régimen.</div></div><div class="card plan-ultra"><b>🟣 Ultra</b><div class="muted">Empresarial · multi-tienda, usuarios y capacidades ilimitadas.</div></div></div></div>
- <div class="panel"><h3>Primeros pasos</h3><p class="muted">Registra la tienda y aquí mismo selecciona su régimen tributario. Ese régimen se enviará a Astore para automatizar su contabilidad.</p></div>`;
+  const ks=data.tiendas.map(estadoReal);
+  const mes=today().slice(0,7), ing=data.pagos.filter(p=>String(p.fecha).startsWith(mes)).reduce((a,p)=>a+Number(p.monto),0);
+  const porV=data.tiendas.filter(s=>["porvencer","gracia","venc"].includes(estadoReal(s).k));
+  return `<div class="head"><div><h2>Inicio</h2><div class="muted">Resumen de Astore</div></div><button class="primary" onclick="openStore()">+ Nueva tienda</button></div>
+  <div class="cards">
+   <div class="card"><div class="muted">Tiendas</div><div class="stat">${data.tiendas.length}</div></div>
+   <div class="card"><div class="muted">Al día / en prueba</div><div class="stat">${ks.filter(k=>k.k==="ok"||k.k==="prueba").length}</div></div>
+   <div class="card"><div class="muted">Por cobrar</div><div class="stat">${porV.length}</div></div>
+   <div class="card"><div class="muted">Cobrado este mes</div><div class="stat">${money(ing)}</div></div></div>
+  <div class="panel"><h3>⏰ Cobros pendientes</h3>${porV.length?`<div class="table-wrap"><table><thead><tr><th>Tienda</th><th>Plan</th><th>Estado</th><th>Vence</th><th></th></tr></thead><tbody>${porV.map(s=>{const e=estadoReal(s);return `<tr><td><b>${esc(s.nombre)}</b><br><span class="mini">${esc(s.telefono||"")}</span></td><td>${esc(s.plan)}</td><td><span class="badge ${e.c}">${esc(e.t)}</span></td><td>${esc(s.paidUntil||s.trialUntil||"—")}</td><td><div class="actions"><button class="primary" onclick="openPayment('${s.id}')">Registrar pago</button>${s.telefono?`<button class="secondary" onclick="remind('${s.id}')">Recordar</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:`<div class="empty">Nadie con pagos pendientes 🎉</div>`}</div>
+  <div class="panel"><h3>🚀 Planes</h3><div class="cards" style="grid-template-columns:repeat(3,1fr)"><div class="card plan-basic"><b>🟢 Básico</b><div class="muted">1 sede · 3 usuarios · NRUS</div></div><div class="card plan-pro"><b>🔵 Pro</b><div class="muted">3 sedes · 10 usuarios · RER/RMT/RG</div></div><div class="card plan-ultra"><b>🟣 Ultra</b><div class="muted">Sedes y usuarios ilimitados</div></div></div></div>`;
 }
+function remind(id){const s=getStore(id);const e=estadoReal(s);
+  const t=`Hola ${s.propietario||""}, te escribimos de Astore. Tu plan ${s.plan} de "${s.nombre}" está: ${e.t}. Para seguir emitiendo y sincronizando, regulariza tu pago. ¡Gracias!`;
+  const ph=(s.telefono||"").replace(/\D/g,"");window.open("https://wa.me/"+(ph.length===9?"51"+ph:ph)+"?text="+encodeURIComponent(t),"_blank")}
+
 function stores(){
- return `<div class="head"><div><h2>Tiendas</h2><div class="muted">Negocios registrados en Astore</div></div><button class="primary" onclick="openStore()">+ Nueva tienda</button></div>
- <div class="panel"><div class="toolbar"><input id="storeSearch" placeholder="Buscar tienda, RUC, propietario o régimen..." oninput="filterStores()"></div>
- <div class="table-wrap"><table><thead><tr><th>Tienda</th><th>Régimen</th><th>Propietario</th><th>Contacto</th><th>Plan</th><th>Estado</th><th>Acciones</th></tr></thead>
- <tbody id="storeRows">${storeRows(data.tiendas)}</tbody></table></div></div>`;
+  return `<div class="head"><div><h2>Tiendas</h2><div class="muted">Negocios registrados (cada uno con su RUC)</div></div><button class="primary" onclick="openStore()">+ Nueva tienda</button></div>
+  <div class="panel"><div class="toolbar"><input id="storeSearch" placeholder="Buscar tienda, RUC, propietario o régimen..." oninput="filterStores()"></div>
+  <div class="table-wrap"><table><thead><tr><th>Tienda</th><th>Régimen</th><th>Propietario</th><th>Plan</th><th>Estado de pago</th><th>Acciones</th></tr></thead><tbody id="storeRows">${storeRows(data.tiendas)}</tbody></table></div></div>`;
 }
 function storeRows(list){
- if(!list.length)return `<tr><td colspan="7" class="empty">No hay tiendas registradas.</td></tr>`;
- return list.map(s=>`<tr><td><b>${esc(s.nombre)}</b><br><span class="muted">${esc(s.ruc||"Sin RUC")}</span></td>
- <td><span class="badge">${esc(s.regimen||"Sin configurar")}</span></td><td>${esc(s.propietario||"")}</td><td>${esc(s.telefono||"")}</td><td>${esc(s.plan)}</td>
- <td><span class="badge ${s.estado==="activa"?"on":"off"}">${esc(s.estado)}</span></td>
- <td><div class="actions"><button class="secondary" onclick="openStore('${s.id}')">Editar</button>
- <button class="${s.estado==="activa"?"danger":"secondary"}" onclick="toggleStore('${s.id}')">${s.estado==="activa"?"Suspender":"Activar"}</button></div></td></tr>`).join("");
+  if(!list.length)return `<tr><td colspan="6" class="empty">No hay tiendas registradas.</td></tr>`;
+  return list.map(s=>{const e=estadoReal(s),susp=s.status==="suspended";return `<tr><td><b>${esc(s.nombre)}</b><br><span class="mini">${esc(s.ruc||"Sin RUC")}</span></td>
+  <td><span class="badge mute">${esc(s.regimen||"—")}</span></td><td>${esc(s.propietario||"")}<br><span class="mini">${esc(s.telefono||"")}</span></td><td>${esc(s.plan)}</td>
+  <td><span class="badge ${e.c}">${esc(e.t)}</span><br><span class="mini">${s.paidUntil?"hasta "+esc(s.paidUntil):""}</span></td>
+  <td><div class="actions"><button class="secondary" onclick="openStore('${s.id}')">Editar</button><button class="primary" onclick="openPayment('${s.id}')">Pago</button>
+  <button class="${susp?"secondary":"danger"}" onclick="toggleStore('${s.id}')">${susp?"Activar":"Suspender"}</button></div></td></tr>`}).join("");
 }
-function filterStores(){
- const q=storeSearch.value.toLowerCase();
- storeRowsEl=document.getElementById("storeRows");
- storeRowsEl.innerHTML=storeRows(data.tiendas.filter(s=>[s.nombre,s.ruc,s.propietario,s.telefono,s.regimen].join(" ").toLowerCase().includes(q)));
-}
-function users(){
- return `<div class="head"><div><h2>Usuarios</h2><div class="muted">Usuarios del panel y de las tiendas</div></div><button class="primary" onclick="openUser()">+ Nuevo usuario</button></div>
- <div class="panel"><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Tienda</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
- ${data.usuarios.map(u=>`<tr><td><b>${esc(u.nombre)}</b></td><td>${esc(u.usuario)}</td><td>${u.tiendaId?esc(getStore(u.tiendaId)?.nombre||"—"):"Astore Admin"}${u.sucursalId?`<br><span class="muted">${esc(getBranch(u.sucursalId)?.nombre||"Sucursal")}</span>`:""}</td><td>${esc(u.rol)}</td><td><span class="badge ${u.estado==="activa"?"on":"off"}">${esc(u.estado)}</span></td><td><button class="secondary" onclick="openUser('${u.id}')">Editar</button></td></tr>`).join("")}
- </tbody></table></div></div>`;
-}
-function getBranch(id){return data.sucursales.find(b=>b.id===id)}
-function branches(){
- return `<div class="head"><div><h2>Sucursales</h2><div class="muted">Locales y puntos de venta asociados a cada tienda</div></div><button class="primary" onclick="openBranch()">+ Nueva sucursal</button></div>
- <div class="panel"><div class="muted" style="margin-bottom:12px">Básico: una sede principal. Pro y Ultra: creación de sucursales adicionales en esta versión local.</div>
- <div class="table-wrap"><table><thead><tr><th>Sucursal</th><th>Tienda</th><th>Código</th><th>Dirección</th><th>Usuarios</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
- ${data.sucursales.length?data.sucursales.map(b=>`<tr><td><b>${esc(b.nombre)}</b><br><span class="muted">${b.principal?"Sede principal":"Sucursal"}</span></td><td>${esc(getStore(b.tiendaId)?.nombre||"Tienda eliminada")}</td><td>${esc(b.codigo||"—")}</td><td>${esc(b.direccion||"—")}</td><td>${data.usuarios.filter(u=>u.sucursalId===b.id).length}</td><td><span class="badge ${b.estado==="activa"?"on":"off"}">${esc(b.estado)}</span></td><td><div class="actions"><button class="secondary" onclick="openBranch('${b.id}')">Editar</button><button class="${b.estado==="activa"?"danger":"secondary"}" onclick="toggleBranch('${b.id}')">${b.estado==="activa"?"Suspender":"Activar"}</button></div></td></tr>`).join(""):`<tr><td colspan="7" class="empty">Aún no hay sucursales. Crea la sede principal o una sucursal adicional.</td></tr>`}
- </tbody></table></div></div>`;
-}
-function openBranch(id=""){
- const b=id?getBranch(id):{nombre:"",tiendaId:data.tiendas[0]?.id||"",codigo:"",direccion:"",telefono:"",principal:false,estado:"activa"};
- if(!data.tiendas.length){alert("Primero registra una tienda.");return;}
- modalTitle.textContent=id?"Editar sucursal":"Nueva sucursal";
- modalBody.innerHTML=`<form onsubmit="saveBranch(event,'${id}')"><div class="field"><label>Tienda propietaria *</label><select id="bTienda" required>${data.tiendas.map(t=>`<option value="${t.id}">${esc(t.nombre)} · ${esc(t.plan||"Básico")}</option>`).join("")}</select></div><div class="field"><label>Nombre de sucursal *</label><input id="bNombre" required value="${esc(b.nombre)}" placeholder="Ej. Local Centro"></div><div class="grid2"><div class="field"><label>Código</label><input id="bCodigo" value="${esc(b.codigo||"")}" placeholder="SUC-001"></div><div class="field"><label>Teléfono</label><input id="bTel" value="${esc(b.telefono||"")}" inputmode="tel"></div></div><div class="field"><label>Dirección</label><input id="bDireccion" value="${esc(b.direccion||"")}"></div><div class="grid2"><div class="field"><label>Tipo</label><select id="bPrincipal"><option value="false">Sucursal adicional</option><option value="true">Sede principal</option></select></div><div class="field"><label>Estado</label><select id="bEstado"><option value="activa">Activa</option><option value="suspendida">Suspendida</option></select></div></div><div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar sucursal</button></div></form>`;
- bTienda.value=b.tiendaId;bPrincipal.value=String(!!b.principal);bEstado.value=b.estado||"activa";modal.classList.remove("hidden");
-}
-function saveBranch(e,id){
- e.preventDefault();const tienda=getStore(bTienda.value);if(!tienda){alert("Selecciona una tienda válida.");return;}
- const sameStore=data.sucursales.filter(x=>x.tiendaId===tienda.id&&x.id!==id);
- if(tienda.plan==="Básico"&&sameStore.length>=1){alert("El plan Básico permite una sola sede. Para agregar más sucursales, cambia la tienda a Pro o Ultra.");return;}
- const codigo=bCodigo.value.trim();if(codigo&&data.sucursales.some(x=>x.tiendaId===tienda.id&&x.codigo===codigo&&x.id!==id)){alert("Ese código ya existe en esta tienda.");return;}
- const principal=bPrincipal.value==="true";if(principal)data.sucursales.forEach(x=>{if(x.tiendaId===tienda.id&&x.id!==id)x.principal=false;});
- const obj={nombre:bNombre.value.trim(),tiendaId:tienda.id,codigo,direccion:bDireccion.value.trim(),telefono:bTel.value.trim(),principal,estado:bEstado.value,updatedAt:new Date().toISOString()};
- if(id){const old=getBranch(id);const oldStore=old.tiendaId;Object.assign(old,obj);if(oldStore!==obj.tiendaId)data.usuarios.forEach(u=>{if(u.sucursalId===id&&u.tiendaId!==obj.tiendaId){u.sucursalId=null;}});}
- else data.sucursales.push({id:crypto.randomUUID(),...obj,createdAt:new Date().toISOString()});
- publishBranches();save();closeModal();render("sucursales");
-}
-function toggleBranch(id){const b=getBranch(id);if(!b)return;b.estado=b.estado==="activa"?"suspendida":"activa";if(b.estado==="suspendida")data.usuarios.forEach(u=>{if(u.sucursalId===id)u.estado="suspendida";});publishBranches();data.usuarios.forEach(u=>{if(u.sucursalId===id)publishUserCredentials(u,u.id)});save();render("sucursales");}
-function publishBranches(){
- localStorage.setItem("astore_v80_branches",JSON.stringify(data.sucursales.map(b=>({...b,tenantId:b.tiendaId,tenantName:getStore(b.tiendaId)?.nombre||""}))));
- localStorage.setItem("astore_admin_v1_data",JSON.stringify(data));
-}
-function config(){
- return `<div class="head"><div><h2>Configuración</h2><div class="muted">Configuración inicial del panel</div></div></div>
- <div class="panel"><h3>Estado</h3><p class="muted">Los datos de esta V1 se guardan en el navegador mediante localStorage. No usar esta autenticación para producción todavía.</p>
- <p><b>Versión:</b> Astore Admin V3 · Trabajadores y sucursales</p><p><b>Tiendas:</b> ${data.tiendas.length}</p><p><b>Sucursales:</b> ${data.sucursales.length}</p><p><b>Usuarios:</b> ${data.usuarios.length}</p></div>
- <div class="panel"><h3>Próxima etapa</h3><p class="muted">Conectar autenticación segura, base de datos y sincronización con Supabase.</p></div>`;
-}
+function filterStores(){const q=$("storeSearch").value.toLowerCase();$("storeRows").innerHTML=storeRows(data.tiendas.filter(s=>[s.nombre,s.ruc,s.propietario,s.telefono,s.regimen].join(" ").toLowerCase().includes(q)))}
+async function toggleStore(id){const s=getStore(id);const susp=s.status==="suspended";
+  if(!susp&&!(await avConfirm("¿Suspender "+s.nombre+"?\nSus usuarios no podrán guardar cambios.",{ok:"Suspender",danger:true})))return;
+  act(()=>B.setStatus(id,susp?(s.paidUntil?"active":"trial"):"suspended"),susp?"Tienda activada":"Tienda suspendida")}
+
 function openStore(id=""){
- const s=id?getStore(id):{nombre:"",propietario:"",ruc:"",telefono:"",direccion:"",plan:"Básico",regimen:"RMT",tipoContribuyente:"Persona natural",pin:""};
- modalTitle.textContent=id?"Editar tienda":"Nueva tienda";
- modalBody.innerHTML=`<form onsubmit="saveStore(event,'${id}')">
- <div class="field"><label>Nombre de la tienda *</label><input id="sNombre" value="${esc(s.nombre)}" required></div>
- <div class="grid2"><div class="field"><label>Propietario</label><input id="sProp" value="${esc(s.propietario)}"></div><div class="field"><label>RUC</label><input id="sRuc" inputmode="numeric" maxlength="11" value="${esc(s.ruc)}" placeholder="11 dígitos"></div></div>
- <div class="panel" style="background:#f8fafc;border:2px solid #0f172a12;margin:14px 0;padding:14px;border-radius:14px"><div style="font-size:12px;font-weight:800;color:#0f172a;margin-bottom:7px">🧾 CONFIGURACIÓN TRIBUTARIA</div><div class="grid2"><div class="field" style="margin:0"><label>Régimen tributario *</label><select id="sRegimen"><option value="NRUS">NRUS · Nuevo RUS</option><option value="RER">RER · Régimen Especial</option><option value="RMT">RMT · MYPE Tributario</option><option value="RG">RG · Régimen General</option></select></div><div class="field" style="margin:0"><label>Tipo de contribuyente</label><select id="sTipo"><option>Persona natural</option><option>Persona jurídica</option></select></div></div>
- <div class="grid2"><div class="field"><label>Teléfono</label><input id="sTel" value="${esc(s.telefono)}"></div><div class="field"><label>Plan</label><select id="sPlan"><option>Básico</option><option>Pro</option><option>Ultra</option></select></div></div><div id="ultraInfo" class="panel" style="display:none;background:#faf5ff;border:1px solid #ddd6fe"><b>🟣 Astore Ultra</b><div class="muted">Activa capacidades empresariales: multi-tienda, usuarios ilimitados, transferencias entre sucursales, auditoría, reportes gerenciales y soporte prioritario.</div></div>
- <div class="grid2"><div class="field"><label>PIN de acceso de la tienda *</label><input id="sPin" inputmode="numeric" maxlength="6" minlength="4" value="${esc(s.pin||"")}" placeholder="4 a 6 dígitos" required></div><div class="field"><label>Estado tributario</label><select id="sTaxStatus"><option value="activo">Configurado</option><option value="revisar">Revisar con contador</option></select></div></div>
- <div class="field"><label>Dirección</label><input id="sDir" value="${esc(s.direccion)}"></div>
- <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar tienda</button></div></form>`;
- sPlan.value=s.plan||"Básico";sPlan.onchange=()=>{ultraInfo.style.display=sPlan.value==="Ultra"?"block":"none"};ultraInfo.style.display=sPlan.value==="Ultra"?"block":"none";sRegimen.value=s.regimen||"RMT";sTipo.value=s.tipoContribuyente||"Persona natural";sPin.value=s.pin||"";sTaxStatus.value=s.taxStatus||"activo";modal.classList.remove("hidden");
+  const s=id?getStore(id):{nombre:"",propietario:"",ruc:"",telefono:"",direccion:"",plan:"Básico",regimen:"RMT",tipoContribuyente:"Persona natural"};
+  const cloud=B.name==="supabase";
+  $("modalTitle").textContent=id?"Editar tienda":"Nueva tienda";
+  $("modalBody").innerHTML=`<form onsubmit="saveStore(event,'${id}')">
+  <div class="field"><label>Nombre de la tienda *</label><input id="sNombre" value="${esc(s.nombre)}" required></div>
+  <div class="grid2"><div class="field"><label>Propietario</label><input id="sProp" value="${esc(s.propietario)}"></div><div class="field"><label>RUC (único)</label><input id="sRuc" inputmode="numeric" maxlength="11" value="${esc(s.ruc)}" placeholder="11 dígitos"></div></div>
+  <div class="panel" style="background:#f8fafc;margin:14px 0;padding:14px"><div style="font-size:12px;font-weight:800;margin-bottom:7px">🧾 CONFIGURACIÓN TRIBUTARIA</div><div class="grid2">
+   <div class="field" style="margin:0"><label>Régimen *</label><select id="sRegimen"><option value="NRUS">NRUS · Nuevo RUS</option><option value="RER">RER · Régimen Especial</option><option value="RMT">RMT · MYPE Tributario</option><option value="RG">RG · Régimen General</option></select></div>
+   <div class="field" style="margin:0"><label>Tipo de contribuyente</label><select id="sTipo"><option>Persona natural</option><option>Persona jurídica</option></select></div></div></div>
+  <div class="grid2"><div class="field"><label>Teléfono (WhatsApp)</label><input id="sTel" value="${esc(s.telefono)}" inputmode="tel"></div><div class="field"><label>Plan</label><select id="sPlan">${PLANES.map(p=>`<option>${p}</option>`).join("")}</select></div></div>
+  <div class="field"><label>PIN de la tienda ${id&&cloud?"(vacío = no cambiar)":"*"}</label><input id="sPin" inputmode="numeric" maxlength="6" placeholder="4 a 6 dígitos" ${id&&cloud?"":"required"} value="${cloud?"":esc(s.pin||"")}"></div>
+  <div class="field"><label>Dirección</label><input id="sDir" value="${esc(s.direccion)}"></div>
+  <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar tienda</button></div></form>`;
+  $("sPlan").value=s.plan||"Básico";$("sRegimen").value=s.regimen||"RMT";$("sTipo").value=s.tipoContribuyente||"Persona natural";$("modal").classList.remove("hidden");
 }
-function saveStore(e,id){
- e.preventDefault();const ruc=sRuc.value.trim(); const pin=sPin.value.trim();
- if(ruc && !/^\d{11}$/.test(ruc)){alert("El RUC debe tener 11 dígitos.");return;}
- if(!/^\d{4,6}$/.test(pin)){alert("El PIN debe tener entre 4 y 6 dígitos.");return;}
- const obj={nombre:sNombre.value.trim(),propietario:sProp.value.trim(),ruc,telefono:sTel.value.trim(),plan:sPlan.value,regimen:sRegimen.value,tipoContribuyente:sTipo.value,pin,direccion:sDir.value.trim(),taxStatus:sTaxStatus.value,accounting:{regimen:sRegimen.value,igv:sRegimen.value!=="NRUS",updatedAt:new Date().toISOString()}};
- if(id)Object.assign(getStore(id),obj);else data.tiendas.push({id:crypto.randomUUID(),...obj,estado:"activa",fechaCreacion:new Date().toISOString()});
- publishStoreConfig(obj,id||data.tiendas[data.tiendas.length-1].id);
- save();closeModal();render("tiendas");
+async function saveStore(e,id){
+  e.preventDefault();const ruc=$("sRuc").value.trim(),pin=$("sPin").value.trim();
+  if(ruc&&!/^\d{11}$/.test(ruc))return alert("El RUC debe tener 11 dígitos.");
+  if(pin&&!/^\d{4,6}$/.test(pin))return alert("El PIN debe tener entre 4 y 6 dígitos.");
+  if(ruc&&data.tiendas.some(t=>t.ruc===ruc&&t.id!==id))return alert("Ya existe una tienda con ese RUC.");
+  const o={nombre:$("sNombre").value.trim(),propietario:$("sProp").value.trim(),ruc,telefono:$("sTel").value.trim(),plan:$("sPlan").value,regimen:$("sRegimen").value,tipoContribuyente:$("sTipo").value,pin,direccion:$("sDir").value.trim(),taxStatus:"activo"};
+  if(await act(()=>B.saveStore(o,id),"Tienda guardada"))closeModal();
 }
 
-function publishStoreConfig(obj,id){
- const cfg={tenantId:id,tenantName:obj.nombre,ruc:obj.ruc||"",regimen:obj.regimen,tipoContribuyente:obj.tipoContribuyente,pin:obj.pin,plan:obj.plan,taxStatus:obj.taxStatus,accounting:obj.accounting,updatedAt:new Date().toISOString()};
- const all=JSON.parse(localStorage.getItem("astore_v80_tenants")||"[]"); const i=all.findIndex(x=>x.id===id); if(i>=0)all[i]={...all[i],...cfg};else all.push(cfg); localStorage.setItem("astore_v80_tenants",JSON.stringify(all));
- localStorage.setItem("astore_v80_selected_tenant",JSON.stringify(cfg));
- localStorage.setItem("astore_v80_branches",JSON.stringify(data.sucursales.filter(b=>b.tiendaId===id).map(b=>({...b,tenantId:b.tiendaId,tenantName:obj.nombre}))));
+/* ---- Cobros ---- */
+function cobros(){
+  const mes=today().slice(0,7), tot=data.pagos.filter(p=>String(p.fecha).startsWith(mes)).reduce((a,p)=>a+Number(p.monto),0);
+  return `<div class="head"><div><h2>Cobros</h2><div class="muted">Cada pago extiende el vencimiento de la tienda (con 7 días de gracia)</div></div><button class="primary" onclick="openPayment()">+ Registrar pago</button></div>
+  <div class="cards" style="grid-template-columns:repeat(3,1fr)"><div class="card"><div class="muted">Cobrado este mes</div><div class="stat">${money(tot)}</div></div><div class="card"><div class="muted">Pagos registrados</div><div class="stat">${data.pagos.length}</div></div><div class="card"><div class="muted">Tiendas vencidas</div><div class="stat">${data.tiendas.filter(s=>estadoReal(s).k==="venc").length}</div></div></div>
+  <div class="panel"><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Tienda</th><th>Monto</th><th>Meses</th><th>Medio</th><th>Referencia</th></tr></thead><tbody>
+  ${data.pagos.length?[...data.pagos].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).map(p=>`<tr><td>${esc(p.fecha)}</td><td><b>${esc(getStore(p.tiendaId)?.nombre||"—")}</b></td><td>${money(p.monto)}</td><td>${p.meses}</td><td>${esc(p.metodo)}</td><td>${esc(p.ref||"")}</td></tr>`).join(""):`<tr><td colspan="6" class="empty">Aún no hay pagos.</td></tr>`}
+  </tbody></table></div></div>`;
 }
-function toggleStore(id){const s=getStore(id);s.estado=s.estado==="activa"?"suspendida":"activa";save();render("tiendas")}
+function openPayment(id=""){
+  if(!data.tiendas.length)return alert("Primero registra una tienda.");
+  $("modalTitle").textContent="Registrar pago";
+  $("modalBody").innerHTML=`<form onsubmit="savePayment(event)"><div class="field"><label>Tienda *</label><select id="pTienda">${data.tiendas.map(t=>`<option value="${t.id}">${esc(t.nombre)} · ${esc(t.plan)}</option>`).join("")}</select></div>
+  <div class="grid2"><div class="field"><label>Monto (S/) *</label><input id="pMonto" type="number" step="0.01" min="0.01" required></div><div class="field"><label>Meses que cubre *</label><select id="pMeses"><option>1</option><option>3</option><option>6</option><option value="12">12</option></select></div></div>
+  <div class="grid2"><div class="field"><label>Medio</label><select id="pMetodo"><option>Yape</option><option>Plin</option><option>Transferencia</option><option>Efectivo</option></select></div><div class="field"><label>Fecha</label><input id="pFecha" type="date" value="${today()}"></div></div>
+  <div class="field"><label>Referencia / operación</label><input id="pRef"></div>
+  <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Registrar pago</button></div></form>`;
+  if(id)$("pTienda").value=id;$("modal").classList.remove("hidden");
+}
+async function savePayment(e){e.preventDefault();
+  const p={tiendaId:$("pTienda").value,monto:Number($("pMonto").value),meses:Number($("pMeses").value),metodo:$("pMetodo").value,ref:$("pRef").value.trim(),fecha:$("pFecha").value||today()};
+  if(await act(()=>B.addPayment(p),"Pago registrado — vencimiento actualizado"))closeModal();}
+
+/* ---- Facturación ---- */
+function facturacion(){
+  return `<div class="head"><div><h2>Facturación electrónica</h2><div class="muted">Conexión de cada negocio con el facturador (OSE/PSE)</div></div></div>
+  <div class="note">El <b>token</b> del facturador se guarda <b>solo en el servidor</b> (nunca vuelve a verse en pantalla). Aquí solo ves si está configurado.</div>
+  <div class="panel"><div class="table-wrap"><table><thead><tr><th>Tienda</th><th>Proveedor</th><th>Entorno</th><th>Token</th><th>Emisión</th><th></th></tr></thead><tbody>
+  ${data.tiendas.length?data.tiendas.map(s=>{const b=s.billing||{};return `<tr><td><b>${esc(s.nombre)}</b><br><span class="mini">${esc(s.ruc||"sin RUC")}</span></td><td>${esc(b.provider||"—")}</td><td><span class="badge ${b.env==="prod"?"on":"info"}">${b.env==="prod"?"Producción":"Pruebas"}</span></td><td>${b.tokenSet?'<span class="badge on">Configurado</span>':'<span class="badge off">Falta</span>'}</td><td>${b.enabled?'<span class="badge on">Activa</span>':'<span class="badge mute">Apagada</span>'}</td><td><button class="secondary" onclick="openBilling('${s.id}')">Configurar</button></td></tr>`}).join(""):`<tr><td colspan="6" class="empty">Registra una tienda primero.</td></tr>`}
+  </tbody></table></div></div>`;
+}
+function openBilling(id){const s=getStore(id),b=s.billing||{provider:"nubefact",endpoint:"",env:"beta",enabled:false};
+  $("modalTitle").textContent="Facturación · "+s.nombre;
+  $("modalBody").innerHTML=`<form onsubmit="saveBilling(event,'${id}')">
+  ${!s.ruc?'<div class="note bad">Esta tienda no tiene RUC. Edítala antes de activar la emisión.</div>':""}
+  <div class="grid2"><div class="field"><label>Proveedor</label><select id="bProv"><option value="nubefact">Nubefact</option><option value="otro">Otro (adaptador)</option></select></div><div class="field"><label>Entorno</label><select id="bEnv"><option value="beta">Pruebas (beta)</option><option value="prod">Producción</option></select></div></div>
+  <div class="field"><label>URL de la ruta/API del facturador</label><input id="bEnd" value="${esc(b.endpoint||"")}" placeholder="https://api.nubefact.com/api/v1/..."></div>
+  <div class="field"><label>Token ${b.tokenSet?"(ya configurado · vacío = no cambiar)":"*"}</label><input id="bTok" type="password" autocomplete="off" placeholder="${b.tokenSet?"••••••••":"Pega el token del facturador"}"></div>
+  <div class="field"><label><input type="checkbox" id="bOn" style="width:auto" ${b.enabled?"checked":""}> Emisión electrónica activa para esta tienda</label></div>
+  <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar</button></div></form>`;
+  $("bProv").value=b.provider||"nubefact";$("bEnv").value=b.env||"beta";$("modal").classList.remove("hidden")}
+async function saveBilling(e,id){e.preventDefault();const s=getStore(id);const tok=$("bTok").value.trim();
+  if($("bOn").checked&&!s.ruc)return alert("Falta el RUC de la tienda.");
+  if($("bOn").checked&&!tok&&!s.billing?.tokenSet)return alert("Para activar la emisión pega el token del facturador.");
+  if($("bOn").checked&&$("bEnv").value==="prod"&&!(await avConfirm("Vas a activar PRODUCCIÓN: los comprobantes serán reales ante SUNAT.\n¿Continuar?",{ok:"Sí, activar",icon:"🧾"})))return;
+  if(await act(()=>B.saveBilling(id,{provider:$("bProv").value,endpoint:$("bEnd").value.trim(),env:$("bEnv").value,enabled:$("bOn").checked},tok),"Facturación guardada"))closeModal();}
+
+/* ---- Usuarios / Sucursales ---- */
+function users(){return `<div class="head"><div><h2>Usuarios</h2><div class="muted">Personal de cada tienda</div></div><button class="primary" onclick="openUser()">+ Nuevo usuario</button></div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Usuario</th><th>Tienda</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>
+ ${data.usuarios.length?data.usuarios.map(u=>`<tr><td><b>${esc(u.nombre)}</b></td><td>${esc(u.usuario)}</td><td>${esc(getStore(u.tiendaId)?.nombre||"—")}${u.sucursalId?`<br><span class="mini">${esc(getBranch(u.sucursalId)?.nombre||"")}</span>`:""}</td><td>${esc(u.rol)}</td><td><span class="badge ${u.estado==="activa"?"on":"off"}">${esc(u.estado)}</span></td><td><button class="secondary" onclick="openUser('${u.id}')">Editar</button></td></tr>`).join(""):`<tr><td colspan="6" class="empty">Aún no hay usuarios.</td></tr>`}
+ </tbody></table></div></div>`}
 function openUser(id=""){
- const u=id?data.usuarios.find(x=>x.id===id):{nombre:"",usuario:"",rol:"Vendedor",tiendaId:data.tiendas[0]?.id||"",estado:"activa"};
- modalTitle.textContent=id?"Editar usuario":"Nuevo usuario";
- modalBody.innerHTML=`<form onsubmit="saveUser(event,'${id}')">
- <div class="field"><label>Nombre *</label><input id="uNombre" value="${esc(u.nombre)}" required></div>
- <div class="grid2"><div class="field"><label>Usuario *</label><input id="uUsuario" value="${esc(u.usuario)}" required></div>
- <div class="field"><label>PIN *</label><input id="uPin" inputmode="numeric" maxlength="6" minlength="4" value="${esc(u.pin||"")}" placeholder="4 a 6 dígitos" required></div></div>
- <div class="grid2"><div class="field"><label>Rol</label><select id="uRol"><option>Administrador</option><option>Encargado</option><option>Vendedor</option><option>Almacén</option></select></div><div class="field"><label>Sucursal asignada</label><select id="uSucursal"><option value="">Todas / Sin asignar</option>${data.sucursales.map(b=>`<option value="${b.id}" data-store="${b.tiendaId}">${esc(b.nombre)} · ${esc(getStore(b.tiendaId)?.nombre||"")}</option>`).join("")}</select></div></div>
- <div class="field"><label>Tienda</label><select id="uTienda"><option value="">Astore Admin</option>${data.tiendas.map(s=>`<option value="${s.id}">${esc(s.nombre)}</option>`).join("")}</select><small class="muted">Los usuarios de tienda solo deben asignarse a una tienda de su propiedad.</small></div>
- <div class="field"><label>Estado</label><select id="uEstado"><option>activa</option><option>suspendida</option></select></div>
- <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar usuario</button></div></form>`;
- uRol.value=u.rol;uTienda.value=u.tiendaId||"";uSucursal.value=u.sucursalId||"";uEstado.value=u.estado;uPin.value=u.pin||"";
- const syncBranchOptions=()=>{const sid=uTienda.value;[...uSucursal.options].forEach(o=>{if(o.value)o.hidden=!!sid&&o.dataset.store!==sid});if(uSucursal.selectedOptions[0]?.hidden)uSucursal.value=""};uTienda.onchange=syncBranchOptions;syncBranchOptions();modal.classList.remove("hidden");
+  if(!data.tiendas.length)return alert("Primero registra una tienda.");
+  const u=id?data.usuarios.find(x=>x.id===id):{nombre:"",usuario:"",rol:"Vendedor",tiendaId:data.tiendas[0].id,estado:"activa"};const cloud=B.name==="supabase";
+  $("modalTitle").textContent=id?"Editar usuario":"Nuevo usuario";
+  $("modalBody").innerHTML=`<form onsubmit="saveUser(event,'${id}')">
+  <div class="field"><label>Nombre *</label><input id="uNombre" value="${esc(u.nombre)}" required></div>
+  <div class="grid2"><div class="field"><label>Usuario *</label><input id="uUsuario" value="${esc(u.usuario)}" required></div><div class="field"><label>PIN ${id?"(vacío = no cambiar)":"*"}</label><input id="uPin" inputmode="numeric" maxlength="6" placeholder="4 a 6 dígitos" ${id?"":"required"}></div></div>
+  ${cloud&&!id?`<div class="grid2"><div class="field"><label>Correo de acceso *</label><input id="uEmail" type="email" required></div><div class="field"><label>Contraseña inicial *</label><input id="uPass" type="password" minlength="8" required></div></div>`:""}
+  <div class="grid2"><div class="field"><label>Rol</label><select id="uRol"><option>Administrador</option><option>Encargado</option><option>Vendedor</option><option>Almacén</option></select></div><div class="field"><label>Estado</label><select id="uEstado"><option>activa</option><option>suspendida</option></select></div></div>
+  <div class="grid2"><div class="field"><label>Tienda *</label><select id="uTienda">${data.tiendas.map(s=>`<option value="${s.id}">${esc(s.nombre)}</option>`).join("")}</select></div><div class="field"><label>Sucursal</label><select id="uSucursal"></select></div></div>
+  <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar usuario</button></div></form>`;
+  $("uRol").value=u.rol;$("uEstado").value=u.estado;$("uTienda").value=u.tiendaId||data.tiendas[0].id;
+  const sync=()=>{$("uSucursal").innerHTML='<option value="">Todas / sin asignar</option>'+data.sucursales.filter(b=>b.tiendaId===$("uTienda").value).map(b=>`<option value="${b.id}">${esc(b.nombre)}</option>`).join("")};
+  $("uTienda").onchange=sync;sync();$("uSucursal").value=u.sucursalId||"";$("modal").classList.remove("hidden");
 }
-function saveUser(e,id){
- e.preventDefault();const pin=uPin.value.trim();if(!/^\d{4,6}$/.test(pin)){alert("El PIN debe tener entre 4 y 6 dígitos.");return;}const tiendaId=uTienda.value||null, sucursalId=uSucursal.value||null; if(sucursalId && getBranch(sucursalId)?.tiendaId!==tiendaId){alert("La sucursal debe pertenecer a la tienda seleccionada.");return;} const obj={nombre:uNombre.value.trim(),usuario:uUsuario.value.trim(),pin,rol:uRol.value,tiendaId,sucursalId,estado:uEstado.value};
- if(id)Object.assign(data.usuarios.find(x=>x.id===id),obj);else data.usuarios.push({id:crypto.randomUUID(),...obj});
- publishUserCredentials(obj,id||data.usuarios[data.usuarios.length-1].id); save();closeModal();render("usuarios");
+async function saveUser(e,id){e.preventDefault();const pin=$("uPin").value.trim();
+  if((pin||!id)&&!/^\d{4,6}$/.test(pin))return alert("El PIN debe tener entre 4 y 6 dígitos.");
+  const tid=$("uTienda").value,s=getStore(tid),lim=LIMITES[s.plan]||LIMITES["Básico"];
+  if(!id&&data.usuarios.filter(x=>x.tiendaId===tid).length>=lim.usr)return alert("El plan "+s.plan+" permite "+lim.usr+" usuarios. Sube de plan para agregar más.");
+  const sid=$("uSucursal").value||null;if(sid&&getBranch(sid)?.tiendaId!==tid)return alert("La sucursal debe pertenecer a la tienda.");
+  const o={nombre:$("uNombre").value.trim(),usuario:$("uUsuario").value.trim(),pin,rol:$("uRol").value,tiendaId:tid,sucursalId:sid,estado:$("uEstado").value,email:$("uEmail")?.value.trim(),password:$("uPass")?.value};
+  if(await act(()=>B.saveUser(o,id),"Usuario guardado"))closeModal();}
+
+function branches(){return `<div class="head"><div><h2>Sucursales</h2><div class="muted">Locales de cada tienda</div></div><button class="primary" onclick="openBranch()">+ Nueva sucursal</button></div>
+ <div class="panel"><div class="muted" style="margin-bottom:12px">Básico: 1 sede · Pro: hasta 3 · Ultra: sin límite.</div><div class="table-wrap"><table><thead><tr><th>Sucursal</th><th>Tienda</th><th>Código</th><th>Dirección</th><th>Usuarios</th><th>Estado</th><th></th></tr></thead><tbody>
+ ${data.sucursales.length?data.sucursales.map(b=>`<tr><td><b>${esc(b.nombre)}</b><br><span class="mini">${b.principal?"Sede principal":"Sucursal"}</span></td><td>${esc(getStore(b.tiendaId)?.nombre||"—")}</td><td>${esc(b.codigo||"—")}</td><td>${esc(b.direccion||"—")}</td><td>${data.usuarios.filter(u=>u.sucursalId===b.id).length}</td><td><span class="badge ${b.estado==="activa"?"on":"off"}">${esc(b.estado)}</span></td><td><div class="actions"><button class="secondary" onclick="openBranch('${b.id}')">Editar</button><button class="${b.estado==="activa"?"danger":"secondary"}" onclick="toggleBranch('${b.id}')">${b.estado==="activa"?"Suspender":"Activar"}</button></div></td></tr>`).join(""):`<tr><td colspan="7" class="empty">Aún no hay sucursales.</td></tr>`}
+ </tbody></table></div></div>`}
+function openBranch(id=""){
+  if(!data.tiendas.length)return alert("Primero registra una tienda.");
+  const b=id?getBranch(id):{nombre:"",tiendaId:data.tiendas[0].id,codigo:"",direccion:"",telefono:"",principal:false,estado:"activa"};
+  $("modalTitle").textContent=id?"Editar sucursal":"Nueva sucursal";
+  $("modalBody").innerHTML=`<form onsubmit="saveBranch(event,'${id}')"><div class="field"><label>Tienda *</label><select id="bTienda">${data.tiendas.map(t=>`<option value="${t.id}">${esc(t.nombre)} · ${esc(t.plan)}</option>`).join("")}</select></div>
+  <div class="field"><label>Nombre *</label><input id="bNombre" required value="${esc(b.nombre)}"></div>
+  <div class="grid2"><div class="field"><label>Código</label><input id="bCodigo" value="${esc(b.codigo||"")}"></div><div class="field"><label>Teléfono</label><input id="bTel" value="${esc(b.telefono||"")}"></div></div>
+  <div class="field"><label>Dirección</label><input id="bDireccion" value="${esc(b.direccion||"")}"></div>
+  <div class="grid2"><div class="field"><label>Tipo</label><select id="bPrincipal"><option value="false">Sucursal adicional</option><option value="true">Sede principal</option></select></div><div class="field"><label>Estado</label><select id="bEstado"><option value="activa">Activa</option><option value="suspendida">Suspendida</option></select></div></div>
+  <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar</button></div></form>`;
+  $("bTienda").value=b.tiendaId;$("bPrincipal").value=String(!!b.principal);$("bEstado").value=b.estado||"activa";$("modal").classList.remove("hidden")}
+async function saveBranch(e,id){e.preventDefault();const t=getStore($("bTienda").value);
+  const same=data.sucursales.filter(x=>x.tiendaId===t.id&&x.id!==id);
+  if(!id&&same.length>=(LIMITES[t.plan]||LIMITES["Básico"]).suc)return alert("El plan "+t.plan+" no permite más sucursales. Sube de plan.");
+  const codigo=$("bCodigo").value.trim();if(codigo&&same.some(x=>x.codigo===codigo))return alert("Ese código ya existe en esta tienda.");
+  const principal=$("bPrincipal").value==="true";
+  const o={nombre:$("bNombre").value.trim(),tiendaId:t.id,codigo,direccion:$("bDireccion").value.trim(),telefono:$("bTel").value.trim(),principal,estado:$("bEstado").value};
+  if(principal&&B.name==="local")same.forEach(x=>x.principal=false);
+  if(principal&&B.name==="supabase"){const old=same.find(x=>x.principal);if(old){try{await B.saveBranch({...old,principal:false},old.id)}catch(er){return alert(er.message)}}}
+  if(await act(()=>B.saveBranch(o,id),"Sucursal guardada"))closeModal();}
+function toggleBranch(id){const b=getBranch(id);act(()=>B.setBranchStatus(id,b.estado==="activa"?"suspendida":"activa"))}
+
+function config(){const cloud=B.name==="supabase";
+  return `<div class="head"><div><h2>Configuración</h2><div class="muted">Estado del panel</div></div></div>
+  <div class="panel"><h3>Conexión</h3><p><b>Modo:</b> ${cloud?"☁️ Nube (Supabase)":"💾 Local en este navegador"}</p>
+  ${cloud?`<p class="muted">Login real con Supabase Auth. Datos protegidos por reglas RLS por negocio.</p><button class="secondary" onclick="disconnectCloud()">Desconectar de la nube</button>`:`<div class="note bad">Modo local: los datos viven solo en este navegador. Para vender el sistema conecta Supabase.</div><button class="primary" onclick="openCloud()">Conectar con la nube</button>`}</div>
+  <div class="panel"><h3>Resumen</h3><p><b>Versión:</b> Astore Admin V4 · Negocios y cobros</p><p><b>Tiendas:</b> ${data.tiendas.length} · <b>Sucursales:</b> ${data.sucursales.length} · <b>Usuarios:</b> ${data.usuarios.length} · <b>Pagos:</b> ${data.pagos.length}</p></div>
+  ${cloud?"":`<div class="panel"><h3>Respaldo local</h3><div class="actions"><button class="secondary" onclick="exportLocal()">Descargar respaldo</button></div></div>`}`}
+function exportLocal(){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,1)],{type:"application/json"}));a.download="astore-admin-respaldo-"+today()+".json";a.click()}
+function openCloud(){const c=JSON.parse(localStorage.getItem(CLOUD_KEY)||"{}");
+  $("modalTitle").textContent="Conectar con Supabase";
+  $("modalBody").innerHTML=`<form onsubmit="saveCloud(event)"><p class="muted">Proyecto de Supabase → Project Settings → API.</p><div class="field"><label>Project URL</label><input id="cUrl" required placeholder="https://xxxx.supabase.co" value="${esc(c.url||"")}"></div><div class="field"><label>anon public key</label><input id="cKey" required value="${esc(c.anonKey||"")}"></div>
+  <div class="note">Nunca pegues aquí la <b>service_role key</b>. Solo la anon key (es pública y está protegida por RLS).</div><div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar y recargar</button></div></form>`;$("modal").classList.remove("hidden")}
+function saveCloud(e){e.preventDefault();const u=$("cUrl").value.trim().replace(/\/$/,""),k=$("cKey").value.trim();
+  if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(u)&&!/^https?:\/\/(localhost|127\.0\.0\.1)/.test(u))return alert("La URL debe ser https://xxxx.supabase.co");
+  if(/service_role/i.test(k)||(k.split(".").length===3&&atob(k.split(".")[1].replace(/-/g,"+").replace(/_/g,"/")).includes("service_role")))return alert("Esa es la clave service_role. Usa la anon key.");
+  localStorage.setItem(CLOUD_KEY,JSON.stringify({url:u,anonKey:k}));location.reload()}
+async function disconnectCloud(){if(await avConfirm("¿Volver al modo local?",{ok:"Volver"})){localStorage.removeItem(CLOUD_KEY);location.reload()}}
+function closeModal(){$("modal").classList.add("hidden")}
+
+/* ================= EAN ================= */
+function eanOk(c){if(!/^\d+$/.test(c)||![8,12,13,14].includes(c.length))return false;let s=0;const n=c.length;for(let i=1;i<n;i++){s+=Number(c[n-1-i])*(i%2===1?3:1)}return (10-s%10)%10===Number(c[n-1])}
+function fixEan(raw){ // Excel suele quitar ceros a la izquierda y deja notación científica
+  let c=String(raw??"").trim();if(/^\d+(\.\d+)?e\+?\d+$/i.test(c))c=String(Number(c).toFixed(0));c=c.replace(/\D/g,"");if(!c)return"";
+  if(eanOk(c))return c;for(const L of [8,12,13,14]){if(c.length<L){const p=c.padStart(L,"0");if(eanOk(p))return p}}return c}
+/* lector .xlsx/.csv sin librerías (zip+XML) */
+async function inflate(u8){
+  const ds=new DecompressionStream('deflate-raw');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer());
+}
+async function unzip(buf){
+  const u8=new Uint8Array(buf),dv=new DataView(buf);let e=-1;
+  for(let i=u8.length-22;i>=Math.max(0,u8.length-66000);i--){if(dv.getUint32(i,true)===0x06054b50){e=i;break;}}
+  if(e<0)throw new Error('No es un archivo .xlsx válido');
+  const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const out={},dec=new TextDecoder();
+  for(let k=0;k<n;k++){
+    if(dv.getUint32(p,true)!==0x02014b50)break;
+    const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);
+    const name=dec.decode(u8.subarray(p+46,p+46+nl));
+    out[name]={method,csize,off};p+=46+nl+el+cl;
+  }
+  const get=async name=>{const f=out[name];if(!f)return null;const ln=dv.getUint16(f.off+26,true),le=dv.getUint16(f.off+28,true),s=f.off+30+ln+le,raw=u8.subarray(s,s+f.csize);return f.method===0?raw:await inflate(raw);};
+  return {names:Object.keys(out),get};
+}
+const colIdx=ref=>{const m=/^([A-Z]+)/.exec(ref);let n=0;for(const ch of m[1])n=n*26+ch.charCodeAt(0)-64;return n-1;};
+async function readXlsx(buf){
+  const z=await unzip(buf),dec=new TextDecoder(),parse=t=>new DOMParser().parseFromString(t,'text/xml');
+  const txt=async n=>{const b=await z.get(n);return b?dec.decode(b):null;};
+  const wbx=parse(await txt('xl/workbook.xml')),relx=parse(await txt('xl/_rels/workbook.xml.rels'));
+  const rel={};[...relx.getElementsByTagName('Relationship')].forEach(r=>{rel[r.getAttribute('Id')]=r.getAttribute('Target');});
+  const shared=[];const ss=await txt('xl/sharedStrings.xml');
+  if(ss){[...parse(ss).getElementsByTagName('si')].forEach(si=>{let s='';const walk=nd=>{for(const c of nd.childNodes){if(c.nodeName==='t')s+=c.textContent;else if(c.nodeName==='r'){[...c.childNodes].forEach(x=>{if(x.nodeName==='t')s+=x.textContent;});}}};walk(si);shared.push(s);});}
+  const sheets=[];
+  for(const sh of [...wbx.getElementsByTagName('sheet')]){
+    const rid=sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id')||sh.getAttribute('r:id');
+    let tg=rel[rid]||'';tg=tg.replace(/^\//,'');const path=tg.startsWith('xl/')?tg:'xl/'+tg;
+    const x=await txt(path);if(!x)continue;
+    const doc=parse(x),rows=[];let cells=0;
+    [...doc.getElementsByTagName('row')].forEach(r=>{
+      const ri=(+r.getAttribute('r')||rows.length+1)-1,arr=[];
+      [...r.getElementsByTagName('c')].forEach(c=>{
+        const ref=c.getAttribute('r'),t=c.getAttribute('t'),vEl=c.getElementsByTagName('v')[0];let v=null;
+        if(t==='inlineStr'){v=[...c.getElementsByTagName('t')].map(n=>n.textContent).join('');}
+        else if(vEl){const raw=vEl.textContent;v=t==='s'?(shared[+raw]||''):t==='str'?raw:t==='b'?raw==='1':t==='e'?null:(raw!==''&&isFinite(raw)?Number(raw):raw);}
+        if(v!==null&&v!==''){arr[ref?colIdx(ref):arr.length]=v;cells++;}
+      });
+      if(arr.length)rows[ri]=arr;
+    });
+    const dense=[];for(let i=0;i<rows.length;i++)dense.push(rows[i]?Array.from(rows[i],x=>x===undefined?'':x):[]);
+    sheets.push({name:sh.getAttribute('name'),rows:dense,cells});
+  }
+  if(!sheets.length)throw new Error('El archivo no tiene hojas con datos');
+  sheets.sort((a,b)=>b.cells-a.cells);return sheets;
+}
+function readCsv(text){
+  const first=text.split(/\r?\n/).slice(0,5).join('\n');
+  const cnt=ch=>(first.match(new RegExp(ch==='\t'?'\t':'\\'+ch,'g'))||[]).length;
+  const d=[';','\t',','].sort((a,b)=>cnt(b)-cnt(a))[0];
+  const rows=[];let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}
+    else if(ch==='"')q=true;
+    else if(ch===d){row.push(cur);cur='';}
+    else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cur);cur='';rows.push(row);row=[];}
+    else cur+=ch;
+  }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return [{name:'CSV',rows:rows.map(r=>r.map(c=>{const s=String(c).trim();return s!==''&&/^-?\d+([.,]\d+)?$/.test(s)?Number(s.replace(',','.')):s;})),cells:rows.length}];
+}
+async function readFile(file){
+  const buf=await file.arrayBuffer(),u8=new Uint8Array(buf);
+  if(u8[0]===0x50&&u8[1]===0x4b)return readXlsx(buf);
+  if(u8[0]===0xd0&&u8[1]===0xcf)throw new Error('Es un Excel antiguo (.xls). Ábrelo y guárdalo como .xlsx o CSV.');
+  let t=new TextDecoder('utf-8').decode(u8);if(t.includes('�'))t=new TextDecoder('windows-1252').decode(u8);
+  return readCsv(t.replace(/^﻿/,''));
 }
 
-function publishUserCredentials(obj,id){
- const all=JSON.parse(localStorage.getItem("astore_v80_store_users")||"[]");
- const cfg={id,username:obj.usuario,pin:obj.pin,nombre:obj.nombre,rol:obj.rol,tiendaId:obj.tiendaId,sucursalId:obj.sucursalId||null,estado:obj.estado,updatedAt:new Date().toISOString()};
- const i=all.findIndex(x=>x.id===id);if(i>=0)all[i]=cfg;else all.push(cfg);localStorage.setItem("astore_v80_store_users",JSON.stringify(all));
+
+/* ---- Catálogo compartido ---- */
+const fold=s=>String(s==null?"":s).normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().trim();
+const gtinOk=c=>eanOk(c);
+let CAT={q:"",estado:"",page:0,size:50,rows:[],total:0,counts:{pendiente:0,aprobado:0,rechazado:0}};
+function catalogo(){
+  setTimeout(catLoad,0);
+  return `<div class="head"><div><h2>Catálogo de productos</h2><div class="muted">Base compartida: las tiendas escanean y los datos aparecen solos. Nunca incluye precios ni stock.</div></div><div class="actions"><button class="secondary" onclick="catExport()">⬇️ Exportar</button><button class="secondary" onclick="openCatSave()">+ Producto</button><button class="primary" onclick="openCatImport()">📥 Importar Excel / CSV</button></div></div>
+  <div class="cards" style="grid-template-columns:repeat(3,1fr)"><div class="card"><div class="muted">Por revisar</div><div class="stat" id="catPend">…</div></div><div class="card"><div class="muted">Aprobados</div><div class="stat" id="catApr">…</div></div><div class="card"><div class="muted">Rechazados</div><div class="stat" id="catRej">…</div></div></div>
+  <div class="panel"><div class="toolbar"><input id="catQ" placeholder="Buscar por código, nombre, marca o categoría..." value="${esc(CAT.q)}" oninput="catSearch()"><select id="catEst" onchange="catSearch()" style="max-width:190px"><option value="">Todos</option><option value="pendiente">Por revisar</option><option value="aprobado">Aprobados</option><option value="rechazado">Rechazados</option></select><button class="secondary" onclick="catApproveVisible()">✔ Aprobar los visibles por revisar</button></div>
+  <div class="table-wrap"><table><thead><tr><th>Código</th><th>Producto</th><th>Marca · tamaño</th><th>Origen</th><th>Estado</th><th></th></tr></thead><tbody id="catRows"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody></table></div>
+  <div class="actions" style="justify-content:space-between;margin-top:10px"><span class="mini" id="catInfo"></span><span class="actions"><button class="secondary" onclick="catPage(-1)">← Anterior</button><button class="secondary" onclick="catPage(1)">Siguiente →</button></span></div></div>`;
 }
-function closeModal(){modal.classList.add("hidden")}
-document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>render(b.dataset.section));
-loginForm.onsubmit=e=>{e.preventDefault();if(loginUser.value.trim()==="admin"&&loginPass.value==="astore123"){sessionStorage.setItem(SESSION_KEY,"1");showApp()}else loginMsg.textContent="Usuario o contraseña incorrectos."};
-logoutBtn.onclick=()=>{sessionStorage.removeItem(SESSION_KEY);showLogin()};
-if(sessionStorage.getItem(SESSION_KEY)==="1")showApp();else showLogin();
-</script>
-</body>
-</html>
+let catT=null;
+function catSearch(){clearTimeout(catT);catT=setTimeout(()=>{CAT.q=$("catQ").value;CAT.estado=$("catEst").value;CAT.page=0;catLoad()},250)}
+function catPage(d){const max=Math.max(0,Math.ceil(CAT.total/CAT.size)-1);CAT.page=Math.min(max,Math.max(0,CAT.page+d));catLoad()}
+async function catLoad(){
+  try{const [l,c]=await Promise.all([B.catList({q:CAT.q,estado:CAT.estado,page:CAT.page,size:CAT.size}),B.catCounts()]);CAT.rows=l.rows;CAT.total=l.total;CAT.counts=c;}catch(e){if($("catRows"))$("catRows").innerHTML=`<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;return}
+  if(!$("catRows"))return;$("catEst").value=CAT.estado;
+  $("catPend").textContent=CAT.counts.pendiente;$("catApr").textContent=CAT.counts.aprobado;$("catRej").textContent=CAT.counts.rechazado;
+  const bd={pendiente:"warn",aprobado:"on",rechazado:"off"},nm={pendiente:"Por revisar",aprobado:"Aprobado",rechazado:"Rechazado"};
+  $("catRows").innerHTML=CAT.rows.length?CAT.rows.map(p=>`<tr><td><code>${esc(p.barcode)}</code></td><td><b>${esc(p.nombre)}</b><br><span class="mini">${esc(p.categoria||"")}</span></td><td>${esc(p.marca||"—")}<br><span class="mini">${esc(p.tamano||"")}</span></td><td><span class="badge mute">${esc(p.origen)}</span>${p.estado==="pendiente"?`<br><span class="mini">${p.votos} tienda(s)</span>`:""}</td><td><span class="badge ${bd[p.estado]}">${nm[p.estado]}</span></td>
+   <td><div class="actions">${p.estado!=="aprobado"?`<button class="primary" onclick="catSet('${p.barcode}','aprobado')">Aprobar</button>`:""}${p.estado!=="rechazado"?`<button class="danger" onclick="catSet('${p.barcode}','rechazado')">Rechazar</button>`:""}<button class="secondary" onclick="openCatSave('${p.barcode}')">Editar</button></div></td></tr>`).join(""):`<tr><td colspan="6" class="empty">No hay productos${CAT.q||CAT.estado?" con ese filtro":" todavía. Importa una lista de un distribuidor para empezar"}.</td></tr>`;
+  const a=CAT.page*CAT.size;$("catInfo").textContent=CAT.total?`${a+1}–${Math.min(CAT.total,a+CAT.size)} de ${CAT.total}`:"";
+}
+async function catSet(code,est){try{await B.catSetStatus([code],est);toast(est==="aprobado"?"Aprobado":"Rechazado");catLoad()}catch(e){alert(e.message)}}
+async function catApproveVisible(){const c=CAT.rows.filter(p=>p.estado==="pendiente").map(p=>p.barcode);if(!c.length)return toast("No hay pendientes en esta página");
+  if(!(await avConfirm("¿Aprobar "+c.length+" productos por revisar?",{ok:"Aprobar"})))return;try{await B.catSetStatus(c,"aprobado");toast(c.length+" aprobados");catLoad()}catch(e){alert(e.message)}}
+function openCatSave(code=""){const p=code?CAT.rows.find(x=>x.barcode===code):{barcode:"",nombre:"",marca:"",tamano:"",categoria:""};
+  $("modalTitle").textContent=code?"Editar producto":"Nuevo producto del catálogo";
+  $("modalBody").innerHTML=`<form onsubmit="saveCat(event,${code?"false":"true"})"><div class="field"><label>Código de barras *</label><input id="kCode" inputmode="numeric" maxlength="14" required value="${esc(p.barcode)}" ${code?"readonly":""}></div>
+  <div class="field"><label>Nombre *</label><input id="kName" required maxlength="160" value="${esc(p.nombre)}" placeholder="Ej: Leche Gloria Evaporada Entera 400 g"></div>
+  <div class="grid2"><div class="field"><label>Marca</label><input id="kBrand" value="${esc(p.marca)}"></div><div class="field"><label>Tamaño / contenido</label><input id="kSize" value="${esc(p.tamano)}" placeholder="400 g, 1 L, 500 ml"></div></div>
+  <div class="field"><label>Categoría</label><input id="kCat" value="${esc(p.categoria)}" placeholder="Lácteos, Bebidas, Abarrotes..."></div>
+  <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar</button></div></form>`;$("modal").classList.remove("hidden")}
+async function saveCat(e,isNew){e.preventDefault();const c=$("kCode").value.replace(/\s/g,"");
+  if(isNew&&!gtinOk(c))return alert("Código de barras inválido (revisa los dígitos: EAN-8, UPC-A, EAN-13 o GTIN-14 con dígito verificador correcto).");
+  try{await B.catSave({barcode:c,nombre:$("kName").value.trim(),marca:$("kBrand").value.trim(),tamano:$("kSize").value.trim(),categoria:$("kCat").value.trim()},isNew);closeModal();toast("Producto guardado");catLoad()}catch(er){alert(er.message)}}
+
+/* importar lista de distribuidor */
+const CAT_COLS={barcode:/\b(barras|ean|gtin|upc|codigo de barra|cod\.? ?barra|barcode|codigo)\b/,nombre:/\b(descripcion|producto|nombre|articulo|item|detalle)\b/,marca:/\bmarca\b/,tamano:/\b(tamano|presentacion|contenido|medida|peso|volumen|formato|unidad de medida)\b/,categoria:/\b(categoria|rubro|linea|familia|clase)\b/};
+let CI=null;
+function openCatImport(){CI={sheets:null,rows:[],hdr:0,map:{}};$("modalTitle").textContent="Importar al catálogo";
+  $("modalBody").innerHTML=`<div id="ciBody"><p class="muted">Sube la lista de un distribuidor (Excel o CSV) con <b>código de barras</b> y <b>nombre</b>. Marca, tamaño y categoría son opcionales. No importes precios: el catálogo no los guarda.</p>
+  <label class="primary" style="display:block;text-align:center;padding:14px;border-radius:12px;cursor:pointer">📁 Elegir archivo<input type="file" id="ciFile" accept=".xlsx,.csv,.tsv,.txt" style="display:none" onchange="ciPick(event)"></label></div>`;$("modal").classList.remove("hidden")}
+async function ciPick(e){const f=e.target.files[0];if(!f)return;
+  try{CI.sheets=await readFile(f);CI.file=f.name;ciSheet(0)}catch(er){alert(er.message)}}
+function ciSheet(i){const sh=CI.sheets[i];CI.sheetI=i;CI.all=sh.rows;let best=0,bs=-1;
+  for(let r=0;r<Math.min(40,CI.all.length);r++){const row=CI.all[r]||[];let s=0;row.forEach(c=>{if(typeof c==="string"){const f=fold(c);Object.values(CAT_COLS).forEach(re=>{if(re.test(f))s++})}});if(s>bs){bs=s;best=r}}
+  CI.hdr=best;ciDetect();ciView()}
+function ciDetect(){const row=CI.all[CI.hdr]||[];CI.map={};
+  Object.keys(CAT_COLS).forEach(k=>{const i=row.findIndex((c,ci)=>typeof c==="string"&&CAT_COLS[k].test(fold(c))&&!Object.values(CI.map).includes(ci));if(i>=0)CI.map[k]=i});
+  if(CI.map.barcode===undefined){let bi=-1,bc=0;const n=Math.max(...CI.all.slice(CI.hdr+1,CI.hdr+60).map(r=>(r||[]).length),0);for(let c=0;c<n;c++){let k=0;CI.all.slice(CI.hdr+1,CI.hdr+60).forEach(r=>{if(gtinOk(ciCode(r?.[c])))k++});if(k>bc){bc=k;bi=c}}if(bi>=0)CI.map.barcode=bi}
+  if(CI.map.nombre===undefined){const n=Math.max(...CI.all.slice(CI.hdr+1,CI.hdr+60).map(r=>(r||[]).length),0);let bi=-1,bl=0;for(let c=0;c<n;c++){if(c===CI.map.barcode)continue;const L=CI.all.slice(CI.hdr+1,CI.hdr+60).reduce((a,r)=>a+(typeof r?.[c]==="string"?r[c].length:0),0);if(L>bl){bl=L;bi=c}}if(bi>=0)CI.map.nombre=bi}}
+const ciCode=v=>(v==null||v==="")?"":fixEan(typeof v==="number"?v.toFixed(0):v);
+function ciBuild(){const m=CI.map,ok=[],bad={codigo:0,nombre:0,dup:0};const seen=new Set();
+  CI.all.slice(CI.hdr+1).forEach(r=>{if(!r||!r.length)return;const code=ciCode(r[m.barcode]),nm=String(r[m.nombre]??"").replace(/\s+/g," ").trim();
+    if(!code&&!nm)return;if(!gtinOk(code)){bad.codigo++;return}if(nm.length<2){bad.nombre++;return}if(seen.has(code)){bad.dup++;return}seen.add(code);
+    ok.push({barcode:code,nombre:nm.slice(0,160),marca:m.marca>=0&&m.marca!=null?String(r[m.marca]??"").trim().slice(0,80):"",tamano:m.tamano!=null?String(r[m.tamano]??"").trim().slice(0,60):"",categoria:m.categoria!=null?String(r[m.categoria]??"").trim().slice(0,80):""})});
+  CI.ok=ok;CI.bad=bad}
+function ciView(){ciBuild();const row=CI.all[CI.hdr]||[],opts=(sel)=>`<option value="">— no importar —</option>`+row.map((c,i)=>`<option value="${i}" ${sel===i?"selected":""}>${esc(String(c||"Columna "+(i+1)))}</option>`).join("");
+  const sel=k=>`<div class="field" style="margin:0"><label>${{barcode:"Código de barras *",nombre:"Nombre *",marca:"Marca",tamano:"Tamaño",categoria:"Categoría"}[k]}</label><select onchange="ciSet('${k}',this.value)">${opts(CI.map[k])}</select></div>`;
+  $("ciBody").innerHTML=`<div class="note">📄 <b>${esc(CI.file)}</b> · ${CI.sheets.length>1?`hoja <select onchange="ciSheet(+this.value)" style="width:auto;padding:4px">${CI.sheets.map((s,i)=>`<option value="${i}" ${i===CI.sheetI?"selected":""}>${esc(s.name)}</option>`).join("")}</select>`:"1 hoja"} · fila de títulos: ${CI.hdr+1}</div>
+  <div class="grid2">${sel("barcode")}${sel("nombre")}${sel("marca")}${sel("tamano")}</div><div style="margin-top:8px">${sel("categoria")}</div>
+  <div class="panel" style="margin:12px 0;padding:12px"><b>${CI.ok.length}</b> productos listos · <span class="mini">${CI.bad.codigo} sin código válido (dígito verificador) · ${CI.bad.nombre} sin nombre · ${CI.bad.dup} repetidos</span>
+  <div class="table-wrap"><table style="min-width:0"><tbody>${CI.ok.slice(0,5).map(p=>`<tr><td><code>${esc(p.barcode)}</code></td><td>${esc(p.nombre)}</td><td class="mini">${esc(p.marca)} ${esc(p.tamano)}</td></tr>`).join("")||'<tr><td class="empty">Elige las columnas de código y nombre.</td></tr>'}</tbody></table></div></div>
+  <div class="field"><label>Origen de la lista</label><select id="ciOrigen"><option value="distribuidor">Distribuidor / mayorista</option><option value="admin">Carga propia</option><option value="openfoodfacts">Open Food Facts</option></select></div>
+  <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary" ${CI.ok.length?"":"disabled"} onclick="ciRun()">Importar ${CI.ok.length} productos</button></div>`}
+function ciSet(k,v){if(v==="")delete CI.map[k];else CI.map[k]=+v;ciView()}
+async function ciRun(){const b=document.querySelector("#ciBody .primary:last-child");if(b){b.disabled=true;b.textContent="Importando…"}
+  try{const r=await B.catImport(CI.ok,$("ciOrigen").value);closeModal();toast(`Listo: ${r.nuevos} nuevos, ${r.actualizados} actualizados`);catLoad()}catch(e){alert(e.message);ciView()}}
+async function catExport(){const out=[["codigo_barras","nombre","marca","tamano","categoria","estado","origen"]];let p=0;
+  for(;;){const l=await B.catList({q:CAT.q,estado:CAT.estado,page:p,size:1000});l.rows.forEach(r=>out.push([r.barcode,r.nombre,r.marca,r.tamano,r.categoria,r.estado,r.origen]));if((p+1)*1000>=l.total)break;p++}
+  const csv="﻿"+out.map(r=>r.map(c=>'"'+String(c??"").replace(/"/g,'""')+'"').join(",")).join("\n");
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="catalogo-astore-"+today()+".csv";a.click()}
+
+/* ================= ARRANQUE ================= */
+async function start(){
+  const c=JSON.parse(localStorage.getItem(CLOUD_KEY)||"null")||window.ASTORE_CLOUD;
+  B=(c&&c.url&&c.anonKey)?(window.__astoreBackendFactory?window.__astoreBackendFactory(c):SupaB(c)):LocalB;
+  const cloud=B.name==="supabase", first=!cloud&&!B.hasAuth();
+  $("lblUser").textContent=cloud?"Correo":"Usuario";$("loginUser").type=cloud?"email":"text";
+  if(!cloud)$("loginUser").value="admin";
+  $("loginSub").textContent=cloud?"Panel de administración · nube":first?"Primera vez: crea tu contraseña de administrador":"Panel de administración · modo local";
+  $("pass2Box").classList.toggle("hidden",!first);$("loginBtn").textContent=first?"Crear contraseña e ingresar":"Ingresar";
+  $("cloudLink").classList.toggle("hidden",cloud);
+  $("cloudLink").onclick=openCloud;
+  $("loginForm").onsubmit=async e=>{e.preventDefault();$("loginMsg").textContent="";$("loginBtn").disabled=true;
+    try{
+      if(first){if($("loginPass").value!==$("loginPass2").value)throw Error("Las contraseñas no coinciden.");await LocalB.setup($("loginPass").value)}
+      await B.login($("loginUser").value.trim(),$("loginPass").value);await showApp();
+    }catch(er){$("loginMsg").textContent=er.message}finally{$("loginBtn").disabled=false}};
+  $("logoutBtn").onclick=async()=>{await B.logout();location.reload()};
+  document.querySelectorAll(".navbtn").forEach(b=>b.onclick=()=>render(b.dataset.section));
+  if(await B.resume())await showApp();
+}
+async function showApp(){$("loginView").classList.add("hidden");$("appView").classList.remove("hidden");await refresh("inicio")}
+start();
+</script></body></html>
