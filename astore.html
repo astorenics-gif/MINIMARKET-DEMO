@@ -197,7 +197,7 @@ const LocalB={
   async load(){const d=JSON.parse(localStorage.getItem(LOCAL_KEY)||"null")||{tiendas:[],sucursales:[],usuarios:[],pagos:[]};d.pagos||=[];return d},
   persist(){localStorage.setItem(LOCAL_KEY,JSON.stringify(data));publishToPOS()},
   async saveStore(obj,id){
-    if(id){Object.assign(getStore(id),obj);return id}
+    if(id){if(!obj.pin)delete obj.pin;Object.assign(getStore(id),obj);return id}
     const nid=crypto.randomUUID();
     data.tiendas.push({id:nid,...obj,status:"trial",estado:"activa",trialUntil:addDays(today(),14),paidUntil:null,billing:{provider:"nubefact",endpoint:"",env:"beta",enabled:false,tokenSet:false},fechaCreacion:new Date().toISOString()});
     data.sucursales.push({id:crypto.randomUUID(),tiendaId:nid,nombre:"Sede principal",codigo:"PRINCIPAL",direccion:obj.direccion||"",telefono:obj.telefono||"",principal:true,estado:"activa"});
@@ -205,7 +205,7 @@ const LocalB={
   async setStatus(id,st){const s=getStore(id);s.status=st;s.estado=st==="suspended"?"suspendida":"activa";this.persist()},
   async saveBranch(obj,id){if(id)Object.assign(getBranch(id),obj);else data.sucursales.push({id:crypto.randomUUID(),...obj});this.persist()},
   async setBranchStatus(id,est){const b=getBranch(id);b.estado=est;this.persist()},
-  async saveUser(obj,id){if(id)Object.assign(data.usuarios.find(x=>x.id===id),obj);else data.usuarios.push({id:crypto.randomUUID(),...obj});this.persist()},
+  async saveUser(obj,id){if(id){if(!obj.pin)delete obj.pin;Object.assign(data.usuarios.find(x=>x.id===id),obj)}else data.usuarios.push({id:crypto.randomUUID(),...obj});this.persist()},
   async addPayment(p){
     data.pagos.push({id:crypto.randomUUID(),...p});
     const s=getStore(p.tiendaId);const base=s.paidUntil&&s.paidUntil>today()?s.paidUntil:today();
@@ -239,8 +239,8 @@ function SupaB(cfg){
   const lib=async()=>{if(sb)return;if(!window.supabase)await new Promise((ok,no)=>{const s=document.createElement("script");s.src=SUPABASE_JS;s.onload=ok;s.onerror=()=>no(Error("No se pudo cargar la librería de Supabase (¿sin internet?)"));document.head.appendChild(s)});
     sb=window.supabase.createClient(cfg.url,cfg.anonKey,{auth:{persistSession:true}})};
   const mapStore=(t,acc)=>({id:t.id,nombre:t.name,propietario:t.owner_name||"",ruc:t.ruc||"",telefono:t.phone||"",direccion:t.address||"",plan:PLAN_NAME[t.plan_code]||"Básico",
-    regimen:t.regimen,tipoContribuyente:t.taxpayer_type||"Persona natural",status:t.status,estado:t.status==="suspended"?"suspendida":"activa",trialUntil:t.trial_until,paidUntil:t.paid_until,hasPin:!!t.pin_hash,
-    billing:acc?{provider:acc.provider,endpoint:acc.endpoint||"",env:acc.environment,enabled:acc.enabled,tokenSet:!!acc.token_set}:{provider:"nubefact",endpoint:"",env:"beta",enabled:false,tokenSet:false}});
+    regimen:t.regimen,tipoContribuyente:t.taxpayer_type||"Persona natural",status:t.status,estado:t.status==="suspended"?"suspendida":"activa",trialUntil:t.trial_until,paidUntil:t.paid_until,hasPin:!!t.has_pin,
+    billing:acc?{provider:acc.provider,endpoint:acc.endpoint||"",env:acc.environment,enabled:acc.enabled,tokenSet:!!acc.token_set,extra:acc.extra||{}}:{provider:"nubefact",endpoint:"",env:"beta",enabled:false,tokenSet:false}});
   return{
     name:"supabase",
     hasAuth(){return true},
@@ -251,7 +251,7 @@ function SupaB(cfg){
       const p=await sb.from("profiles").select("role").eq("id",s.data.session.user.id).single();return p.data?.role==="superadmin"}catch(e){return false}},
     async logout(){await lib();await sb.auth.signOut()},
     async load(){
-      const [t,b,p,pay,acc]=await Promise.all([sb.from("tenants").select("*").order("created_at"),sb.from("branches").select("*"),sb.from("profiles").select("*").neq("role","superadmin"),sb.from("payments").select("*").order("paid_on",{ascending:false}),sb.from("invoicing_accounts").select("*")]);
+      const [t,b,p,pay,acc]=await Promise.all([sb.from("tenants").select("id,name,owner_name,phone,address,ruc,regimen,taxpayer_type,plan_code,status,trial_until,paid_until,has_pin,created_at").order("created_at"),sb.from("branches").select("*"),sb.from("profiles").select("id,tenant_id,branch_id,full_name,username,role,status,has_pin,created_at").neq("role","superadmin"),sb.from("payments").select("*").order("paid_on",{ascending:false}),sb.from("invoicing_accounts").select("*")]);
       const accs=Object.fromEntries(must(acc).map(a=>[a.tenant_id,a]));
       return{tiendas:must(t).map(x=>mapStore(x,accs[x.id])),
         sucursales:must(b).map(x=>({id:x.id,tiendaId:x.tenant_id,nombre:x.name,codigo:x.code||"",direccion:x.address||"",telefono:x.phone||"",principal:x.is_main,estado:x.status==="active"?"activa":"suspendida"})),
@@ -269,7 +269,7 @@ function SupaB(cfg){
     async setBranchStatus(id,est){must(await sb.from("branches").update({status:est==="activa"?"active":"suspended"}).eq("id",id))},
     async saveUser(o,id){await fn({action:"upsert_user",id,tenant_id:o.tiendaId,branch_id:o.sucursalId,full_name:o.nombre,username:o.usuario,email:o.email,password:o.password,role:o.rol,pin:o.pin,status:o.estado==="activa"?"active":"suspended"})},
     async addPayment(p){must(await sb.from("payments").insert({tenant_id:p.tiendaId,amount:p.monto,months:p.meses,method:p.metodo,reference:p.ref,paid_on:p.fecha}))},
-    async saveBilling(id,b,token){must(await sb.from("invoicing_accounts").update({provider:b.provider,endpoint:b.endpoint,environment:b.env,enabled:b.enabled}).eq("tenant_id",id));
+    async saveBilling(id,b,token){must(await sb.from("invoicing_accounts").update({provider:b.provider,endpoint:b.endpoint,environment:b.env,enabled:b.enabled,extra:b.extra||{}}).eq("tenant_id",id));
       if(token)await fn({action:"set_token",tenant_id:id,token})},
     /* catálogo compartido */
     async catCounts(){const c={pendiente:0,aprobado:0,rechazado:0};const m={pendiente:"pending",aprobado:"approved",rechazado:"rejected"};
@@ -345,7 +345,7 @@ function openStore(id=""){
    <div class="field" style="margin:0"><label>Régimen *</label><select id="sRegimen"><option value="NRUS">NRUS · Nuevo RUS</option><option value="RER">RER · Régimen Especial</option><option value="RMT">RMT · MYPE Tributario</option><option value="RG">RG · Régimen General</option></select></div>
    <div class="field" style="margin:0"><label>Tipo de contribuyente</label><select id="sTipo"><option>Persona natural</option><option>Persona jurídica</option></select></div></div></div>
   <div class="grid2"><div class="field"><label>Teléfono (WhatsApp)</label><input id="sTel" value="${esc(s.telefono)}" inputmode="tel"></div><div class="field"><label>Plan</label><select id="sPlan">${PLANES.map(p=>`<option>${p}</option>`).join("")}</select></div></div>
-  <div class="field"><label>PIN de la tienda ${id&&cloud?"(vacío = no cambiar)":"*"}</label><input id="sPin" inputmode="numeric" maxlength="6" placeholder="4 a 6 dígitos" ${id&&cloud?"":"required"} value="${cloud?"":esc(s.pin||"")}"></div>
+  <div class="field"><label>PIN de la tienda ${id&&(cloud||String(s.pin||"").startsWith("h1$"))?"(vacío = no cambiar)":"*"}</label><input id="sPin" inputmode="numeric" maxlength="6" placeholder="4 a 6 dígitos" ${id&&(cloud||String(s.pin||"").startsWith("h1$"))?"":"required"} value="${cloud||String(s.pin||"").startsWith("h1$")?"":esc(s.pin||"")}"></div>
   <div class="field"><label>Dirección</label><input id="sDir" value="${esc(s.direccion)}"></div>
   <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar tienda</button></div></form>`;
   $("sPlan").value=s.plan||"Básico";$("sRegimen").value=s.regimen||"RMT";$("sTipo").value=s.tipoContribuyente||"Persona natural";$("modal").classList.remove("hidden");
@@ -394,17 +394,28 @@ function openBilling(id){const s=getStore(id),b=s.billing||{provider:"nubefact",
   $("modalTitle").textContent="Facturación · "+s.nombre;
   $("modalBody").innerHTML=`<form onsubmit="saveBilling(event,'${id}')">
   ${!s.ruc?'<div class="note bad">Esta tienda no tiene RUC. Edítala antes de activar la emisión.</div>':""}
-  <div class="grid2"><div class="field"><label>Proveedor</label><select id="bProv"><option value="nubefact">Nubefact</option><option value="otro">Otro (adaptador)</option></select></div><div class="field"><label>Entorno</label><select id="bEnv"><option value="beta">Pruebas (beta)</option><option value="prod">Producción</option></select></div></div>
+  <div class="grid2"><div class="field"><label>Proveedor</label><select id="bProv"><option value="nubefact">Nubefact</option><option value="apisperu">APIsPERU (facturación)</option><option value="otro">Otro (adaptador)</option></select></div><div class="field"><label>Entorno</label><select id="bEnv"><option value="beta">Pruebas (beta)</option><option value="prod">Producción</option></select></div></div>
   <div class="field"><label>URL de la ruta/API del facturador</label><input id="bEnd" value="${esc(b.endpoint||"")}" placeholder="https://api.nubefact.com/api/v1/..."></div>
+  <div id="bExtra" class="hidden"><div class="note">APIsPERU emite con los datos de la empresa. Regístrala en tu cuenta de APIsPERU (certificado y clave SOL) y completa aquí lo que pide SUNAT.</div>
+  <div class="field"><label>Razón social (como en SUNAT)</label><input id="bxRz" value="${esc((b.extra||{}).razon_social||s.nombre||"")}"></div>
+  <div class="grid2"><div class="field"><label>Ubigeo (6 dígitos)</label><input id="bxUb" inputmode="numeric" maxlength="6" value="${esc((b.extra||{}).ubigeo||"")}" placeholder="250101"></div><div class="field"><label>Cód. de local</label><input id="bxLoc" maxlength="4" value="${esc((b.extra||{}).cod_local||"0000")}"></div></div>
+  <div class="grid2"><div class="field"><label>Departamento</label><input id="bxDep" value="${esc((b.extra||{}).departamento||"")}" placeholder="UCAYALI"></div><div class="field"><label>Provincia</label><input id="bxPro" value="${esc((b.extra||{}).provincia||"")}" placeholder="CORONEL PORTILLO"></div></div>
+  <div class="field"><label>Distrito</label><input id="bxDis" value="${esc((b.extra||{}).distrito||"")}" placeholder="CALLERIA"></div>
+  <div class="field"><label>Dirección fiscal</label><input id="bxDir" value="${esc((b.extra||{}).direccion||s.direccion||"")}"></div></div>
   <div class="field"><label>Token ${b.tokenSet?"(ya configurado · vacío = no cambiar)":"*"}</label><input id="bTok" type="password" autocomplete="off" placeholder="${b.tokenSet?"••••••••":"Pega el token del facturador"}"></div>
   <div class="field"><label><input type="checkbox" id="bOn" style="width:auto" ${b.enabled?"checked":""}> Emisión electrónica activa para esta tienda</label></div>
   <div class="actions"><button type="button" class="secondary" onclick="closeModal()">Cancelar</button><button class="primary">Guardar</button></div></form>`;
-  $("bProv").value=b.provider||"nubefact";$("bEnv").value=b.env||"beta";$("modal").classList.remove("hidden")}
+  $("bProv").value=b.provider||"nubefact";$("bEnv").value=b.env||"beta";
+  const sx=()=>{const ap=$("bProv").value==="apisperu";$("bExtra").classList.toggle("hidden",!ap);if(ap&&!$("bEnd").value)$("bEnd").value="https://facturacion.apisperu.com/api/v1/invoice/send"};
+  $("bProv").onchange=sx;sx();$("modal").classList.remove("hidden")}
 async function saveBilling(e,id){e.preventDefault();const s=getStore(id);const tok=$("bTok").value.trim();
   if($("bOn").checked&&!s.ruc)return alert("Falta el RUC de la tienda.");
   if($("bOn").checked&&!tok&&!s.billing?.tokenSet)return alert("Para activar la emisión pega el token del facturador.");
   if($("bOn").checked&&$("bEnv").value==="prod"&&!(await avConfirm("Vas a activar PRODUCCIÓN: los comprobantes serán reales ante SUNAT.\n¿Continuar?",{ok:"Sí, activar",icon:"🧾"})))return;
-  if(await act(()=>B.saveBilling(id,{provider:$("bProv").value,endpoint:$("bEnd").value.trim(),env:$("bEnv").value,enabled:$("bOn").checked},tok),"Facturación guardada"))closeModal();}
+  let extra={};
+  if($("bProv").value==="apisperu"){extra={razon_social:$("bxRz").value.trim(),ubigeo:$("bxUb").value.trim(),cod_local:$("bxLoc").value.trim()||"0000",departamento:$("bxDep").value.trim().toUpperCase(),provincia:$("bxPro").value.trim().toUpperCase(),distrito:$("bxDis").value.trim().toUpperCase(),direccion:$("bxDir").value.trim()};
+    if($("bOn").checked){if(!extra.razon_social)return alert("Escribe la razón social.");if(!/^\d{6}$/.test(extra.ubigeo))return alert("El ubigeo debe tener 6 dígitos.");if(!extra.departamento||!extra.provincia||!extra.distrito)return alert("Completa departamento, provincia y distrito.");if(!extra.direccion)return alert("Escribe la dirección fiscal.")}}
+  if(await act(()=>B.saveBilling(id,{provider:$("bProv").value,endpoint:$("bEnd").value.trim(),env:$("bEnv").value,enabled:$("bOn").checked,extra},tok),"Facturación guardada"))closeModal();}
 
 /* ---- Usuarios / Sucursales ---- */
 function users(){return `<div class="head"><div><h2>Usuarios</h2><div class="muted">Personal de cada tienda</div></div><button class="primary" onclick="openUser()">+ Nuevo usuario</button></div>
